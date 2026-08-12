@@ -1,13 +1,81 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-}
-
 datasource db {
   provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Client {
+  id           String  @id @default(uuid())
+  name         String
+  phone        String
+  email        String?
+  address      String
+  notes        String?
+  defaultPrice Decimal
+
+  // TOGGLES E PREFERÊNCIAS INDIVIDUAIS
+  enableAppointmentReminder Boolean @default(true)
+  reminderDaysBefore        Int     @default(1)
+
+  enableInvoice   Boolean @default(true)
+  autoSendInvoice Boolean @default(false)
+
+  enablePaymentReminder Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+  invoices     Invoice[]
+}
+
+model Appointment {
+  id       String @id @default(uuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  date   DateTime
+  price  Decimal
+  status AppointmentStatus @default(SCHEDULED)
+
+  reminderSentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice Invoice?
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Invoice {
+  id            String      @id @default(uuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+
+  invoiceNumber String        @unique
+  amount        Decimal
+  dueDate       DateTime
+  status        PaymentStatus @default(PENDING)
+
+  sentAt       DateTime?
+  lastChasedAt DateTime?
+  paidAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
 }
