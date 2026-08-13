@@ -6,8 +6,22 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String // Hash da senha (bcrypt/argon2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clients Client[]
+}
+
 model Client {
-  id           String  @id @default(uuid())
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   name         String
   phone        String
   email        String?

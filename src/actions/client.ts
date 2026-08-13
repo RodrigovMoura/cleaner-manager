@@ -3,9 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-export async function getClients() {
+export async function getClients(userId: string) {
   try {
     return await prisma.client.findMany({
+      where: { userId },
       orderBy: { name: "asc" },
     });
   } catch (error) {
@@ -15,6 +16,7 @@ export async function getClients() {
 }
 
 export async function createClient(data: {
+  userId: string;
   name: string;
   phone: string;
   email?: string;
@@ -29,10 +31,7 @@ export async function createClient(data: {
 }) {
   try {
     const newClient = await prisma.client.create({
-      data: {
-        ...data,
-        defaultPrice: data.defaultPrice,
-      },
+      data,
     });
 
     revalidatePath("/clients");
