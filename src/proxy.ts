@@ -5,7 +5,7 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "chave-sec
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("auth_token")?.value;
 
@@ -22,12 +22,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Redireciona usuário não autenticado tentando acessar rota privada
   if (!isAuthenticated && !isPublicRoute && pathname !== "/") {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // Redireciona usuário já autenticado tentando acessar login ou registro
   if (isAuthenticated && isPublicRoute) {
     return NextResponse.redirect(new URL("/clients", req.url));
   }

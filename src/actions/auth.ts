@@ -1,9 +1,11 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { createSession, destroySession } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { jwtVerify } from "jose";
+import { createSession, destroySession } from "@/lib/auth";
 
 export async function registerUser(formData: FormData) {
   const name = formData.get("name") as string;
@@ -65,4 +67,21 @@ export async function loginUser(formData: FormData) {
 export async function logoutUser() {
   await destroySession();
   redirect("/login");
+}
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+
+export async function getSession() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("auth_token")?.value;
+
+  if (!token) return null;
+
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload as { userId: string; email?: string };
+  } catch (error) {
+    console.error("Error verifying JWT:", error);
+    return null;
+  }
 }
