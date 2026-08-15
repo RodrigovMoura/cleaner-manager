@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import { getSession } from "@/actions/auth";
 import { revalidatePath } from "next/cache";
 
@@ -131,4 +132,32 @@ export async function createClient(formData: FormData) {
     console.error("Failed to create client:", error);
     return { success: false, message: "An error occurred while saving the client. Please try again." };
   }
+}
+
+export async function deleteClient(id: string) {
+  const session = await getSession();
+
+  if (!session?.userId) {
+    return { success: false, message: "Unauthorized: Please log in to continue." };
+  }
+
+  try {
+    const deleted = await prisma.client.deleteMany({
+      where: {
+        id,
+        userId: session.userId,
+      },
+    });
+
+    if (deleted.count === 0) {
+      return { success: false, message: "Client not found or unauthorized." };
+    }
+  } catch (error) {
+    console.error("Failed to delete client:", error);
+    return { success: false, message: "An error occurred while deleting the client. Please try again." };
+  }
+
+  // Revalidate and Redirect must stay out of the try/catch
+  revalidatePath("/clients");
+  redirect("/clients");
 }

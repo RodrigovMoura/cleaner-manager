@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { updateClient } from "@/actions/client";
+import { updateClient, deleteClient } from "@/actions/client";
 
 interface ClientData {
   id: string;
@@ -22,6 +22,8 @@ export default function EditClientForm({ client }: { client: ClientData }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSubmit = async (formData: FormData) => {
     setStatus("loading");
@@ -34,6 +36,19 @@ export default function EditClientForm({ client }: { client: ClientData }) {
     } else {
       setStatus("error");
       setMessage(result.message || "Something went wrong.");
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+
+    const result = await deleteClient(client.id);
+
+    if (result && !result.success) {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setStatus("error");
+      setMessage(result.message || "Failed to delete client.");
     }
   };
 
@@ -234,14 +249,72 @@ export default function EditClientForm({ client }: { client: ClientData }) {
           </Link>
           <button
             type='submit'
-            disabled={status === "loading"}
+            disabled={status === "loading" || isDeleting}
             className='px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed'>
             {status === "loading" ? "Saving..." : "Update Client"}
           </button>
         </div>
       </form>
 
-      {/* Notification Modal */}
+      {/* Danger Zone: Delete Client */}
+      <div className='mt-12 pt-6 border-t border-red-100'>
+        <div className='bg-red-50/60 border border-red-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
+          <div>
+            <h3 className='text-sm font-semibold text-red-900'>Delete this client</h3>
+            <p className='text-xs text-red-700 mt-0.5'>Permanently remove this client and their automation settings.</p>
+          </div>
+          <button
+            type='button'
+            onClick={() => setShowDeleteConfirm(true)}
+            className='px-4 py-2 text-xs font-semibold text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50 transition-colors shrink-0'>
+            Delete Client
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4'
+          onClick={() => setShowDeleteConfirm(false)}>
+          <div
+            className='bg-white rounded-xl shadow-xl max-w-sm w-full p-6 text-center'
+            onClick={(e) => e.stopPropagation()}>
+            <div className='mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-red-100 mb-4'>
+              <svg className='h-7 w-7 text-red-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth='2'
+                  d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                />
+              </svg>
+            </div>
+            <h3 className='text-lg font-semibold text-gray-900 mb-2'>Delete Client?</h3>
+            <p className='text-sm text-gray-500 mb-6'>
+              Are you sure you want to delete <span className='font-semibold text-gray-700'>{client.name}</span>? This
+              action cannot be undone.
+            </p>
+            <div className='flex items-center gap-3'>
+              <button
+                type='button'
+                onClick={() => setShowDeleteConfirm(false)}
+                className='w-1/2 px-4 py-2.5 bg-gray-100 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'>
+                Cancel
+              </button>
+              <button
+                type='button'
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className='w-1/2 px-4 py-2.5 bg-red-600 text-sm font-medium text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-70'>
+                {isDeleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Modal (Success / Error) */}
       {(status === "success" || status === "error") && (
         <div
           className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4'
