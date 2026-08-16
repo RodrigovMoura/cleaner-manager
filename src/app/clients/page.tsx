@@ -30,13 +30,17 @@ export default async function ClientsPage() {
         </div>
       ) : (
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          {clients.map((client: any) => (
+          {clients.map((client) => (
             <div
               key={client.id}
               className='border border-gray-200 p-5 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between'>
               <div>
                 <div className='flex items-start justify-between gap-2'>
-                  <h2 className='text-base font-semibold text-gray-900'>{client.name}</h2>
+                  <Link
+                    href={`/clients/${client.id}`}
+                    className='hover:underline decoration-blue-500 underline-offset-2'>
+                    <h2 className='text-base font-semibold text-gray-900'>{client.name}</h2>
+                  </Link>
                   <Link
                     href={`/clients/${client.id}/edit`}
                     className='text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-50 transition-colors'>
