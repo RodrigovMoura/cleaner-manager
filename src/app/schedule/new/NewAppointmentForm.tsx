@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createAppointment } from "@/actions/appointment";
+import styles from "./NewAppointmentForm.module.css";
 
 interface ClientOption {
   id: string;
@@ -41,49 +42,33 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
 
   return (
     <>
-      <div className='relative w-full max-w-md'>
+      <div className={styles.formContainer}>
         <button
-          onClick={handleCloseModal}
+          type='button'
+          onClick={() => router.push("/schedule")}
           aria-label='Cancel'
-          className='absolute -top-3 -right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[#D8E2E0] bg-white text-[#5C6F6D] shadow-sm transition hover:border-[#1F7A64] hover:text-[#1F7A64]'>
+          className={styles.closeButton}>
           ✕
         </button>
 
         {/* Ticket card */}
-        <div className='overflow-hidden rounded-b-2xl bg-white shadow-[0_20px_50px_-20px_rgba(31,122,100,0.35)]'>
+        <div className={styles.card}>
           {/* Perforated edge */}
 
-          <div className='px-8 pt-6 pb-8' style={{ fontFamily: "Inter, sans-serif" }}>
-            <span
-              className='inline-block rounded-full bg-[#DCEFE9] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1F7A64]'
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              New Booking · Cleaning Service
-            </span>
+          <div className={styles.cardContent}>
+            <span className={styles.badge}>New Booking · Cleaning Service</span>
 
-            <h2
-              className='mt-3 text-2xl font-semibold tracking-tight text-[#1B2B2A]'
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              Schedule a cleaning
-            </h2>
-            <p className='mt-1 text-sm leading-relaxed text-[#5C6F6D]'>
-              Book a single visit, or set up a recurring bi-weekly schedule.
-            </p>
+            <h2 className={styles.title}>Schedule a cleaning</h2>
+            <p className={styles.description}>Book a single visit, or set up a recurring bi-weekly schedule.</p>
 
-            <form onSubmit={handleSubmit} className='mt-7 flex flex-col gap-5'>
+            <form onSubmit={handleSubmit} className={styles.form}>
               {/* Client */}
               <div>
-                <label
-                  htmlFor='clientId'
-                  className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5C6F6D]'>
+                <label htmlFor='clientId' className={styles.fieldLabel}>
                   Client
                 </label>
-                <div className='relative mt-1.5'>
-                  <select
-                    id='clientId'
-                    name='clientId'
-                    required
-                    defaultValue=''
-                    className='w-full appearance-none border-0 border-b-2 border-[#D8E2E0] bg-transparent py-2 pr-6 text-sm text-[#1B2B2A] outline-none transition-colors focus:border-[#1F7A64]'>
+                <div className={styles.selectContainer}>
+                  <select id='clientId' name='clientId' required defaultValue='' className={styles.select}>
                     <option value='' disabled>
                       Select a client
                     </option>
@@ -93,36 +78,24 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
                       </option>
                     ))}
                   </select>
-                  <span className='pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-xs text-[#5C6F6D]'>
-                    ▾
-                  </span>
+                  <span className={styles.selectArrow}>▾</span>
                 </div>
               </div>
 
               {/* Date & Price */}
-              <div className='grid grid-cols-2 gap-5'>
+              <div className={styles.fieldGrid}>
                 <div>
-                  <label
-                    htmlFor='date'
-                    className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5C6F6D]'>
+                  <label htmlFor='date' className={styles.fieldLabel}>
                     Date & time
                   </label>
-                  <input
-                    id='date'
-                    type='datetime-local'
-                    name='date'
-                    required
-                    className='mt-1.5 w-full border-0 border-b-2 border-[#D8E2E0] bg-transparent py-2 text-sm text-[#1B2B2A] outline-none transition-colors focus:border-[#1F7A64]'
-                  />
+                  <input id='date' type='datetime-local' name='date' required className={styles.input} />
                 </div>
                 <div>
-                  <label
-                    htmlFor='price'
-                    className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5C6F6D]'>
+                  <label htmlFor='price' className={styles.fieldLabel}>
                     Price (AUD)
                   </label>
-                  <div className='mt-1.5 flex items-center border-b-2 border-[#D8E2E0] transition-colors focus-within:border-[#1F7A64]'>
-                    <span className='text-sm text-[#5C6F6D]'>$</span>
+                  <div className={styles.priceContainer}>
+                    <span className={styles.pricePrefix}>$</span>
                     <input
                       id='price'
                       type='number'
@@ -131,7 +104,7 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
                       min='0'
                       required
                       placeholder='0.00'
-                      className='w-full border-0 bg-transparent py-2 pl-1 text-sm text-[#1B2B2A] outline-none'
+                      className={styles.priceInput}
                     />
                   </div>
                 </div>
@@ -139,28 +112,26 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
 
               {/* Recurrence segmented control */}
               <div>
-                <span className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5C6F6D]'>Frequency</span>
-                <div className='mt-1.5 grid grid-cols-2 gap-2 rounded-full bg-[#F5F7F7] p-1'>
+                <span className={styles.fieldLabel}>Frequency</span>
+                <div className={styles.segmentedControl}>
                   {(
                     [
                       { value: "none", label: "One-time" },
                       { value: "biweekly", label: "Bi-weekly" },
                     ] as const
                   ).map((opt) => (
-                    <label key={opt.value} className='cursor-pointer'>
+                    <label key={opt.value} className={styles.segmentedLabel}>
                       <input
                         type='radio'
                         name='recurrence'
                         value={opt.value}
                         checked={recurrence === opt.value}
                         onChange={() => setRecurrence(opt.value)}
-                        className='peer sr-only'
+                        className={styles.radioHidden}
                       />
                       <span
-                        className={`block rounded-full py-2 text-center text-sm font-medium transition-colors ${
-                          recurrence === opt.value
-                            ? "bg-[#1F7A64] text-white shadow-sm"
-                            : "text-[#5C6F6D] hover:text-[#1B2B2A]"
+                        className={`${styles.segmentButton} ${
+                          recurrence === opt.value ? styles.segmentButtonActive : styles.segmentButtonInactive
                         }`}>
                         {opt.label}
                       </span>
@@ -171,53 +142,43 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
 
               {/* Occurrences */}
               {recurrence === "biweekly" && (
-                <div className='rounded-xl border border-dashed border-[#BFE0D6] bg-[#F5FAF9] p-4'>
-                  <span className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#5C6F6D]'>
-                    How many upcoming cleanings?
-                  </span>
-                  <div className='mt-2 grid grid-cols-3 gap-2'>
+                <div className={styles.occurrencesContainer}>
+                  <span className={styles.fieldLabel}>How many upcoming cleanings?</span>
+                  <div className={styles.occurrencesGrid}>
                     {[
                       { value: "3", label: "3", sub: "~1.5 mo" },
                       { value: "6", label: "6", sub: "~3 mo" },
                       { value: "12", label: "12", sub: "~6 mo" },
                     ].map((opt) => (
-                      <label key={opt.value} className='cursor-pointer'>
+                      <label key={opt.value} className={styles.segmentedLabel}>
                         <input
                           type='radio'
                           name='occurrences'
                           value={opt.value}
                           checked={occurrences === opt.value}
                           onChange={() => setOccurrences(opt.value)}
-                          className='peer sr-only'
+                          className={styles.radioHidden}
                         />
                         <span
-                          className={`flex flex-col items-center rounded-lg border py-2 text-sm font-semibold transition-colors ${
-                            occurrences === opt.value
-                              ? "border-[#1F7A64] bg-white text-[#1F7A64]"
-                              : "border-transparent text-[#5C6F6D] hover:bg-white/60"
+                          className={`${styles.occurrenceButton} ${
+                            occurrences === opt.value ? styles.occurrenceButtonActive : styles.occurrenceButtonInactive
                           }`}>
                           {opt.label}
-                          <span className='text-[10px] font-normal text-[#8AA19D]'>{opt.sub}</span>
+                          <span className={styles.occurrenceSubtext}>{opt.sub}</span>
                         </span>
                       </label>
                     ))}
                   </div>
-                  <p className='mt-3 text-xs leading-relaxed text-[#5C6F6D]'>
-                    You can manage or cancel individual appointments later.
-                  </p>
+                  <p className={styles.occurrencesNote}>You can manage or cancel individual appointments later.</p>
                 </div>
               )}
 
               {/* Ticket stub / submit */}
-              <div className='mt-2 border-t-2 border-dashed border-[#D8E2E0] pt-5'>
-                <button
-                  type='submit'
-                  disabled={status === "loading"}
-                  className='flex w-full items-center justify-center gap-2 rounded-full bg-[#1F7A64] py-3 text-sm font-semibold tracking-wide text-white transition hover:bg-[#1B6A57] disabled:cursor-not-allowed disabled:opacity-60'
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div className={styles.formFooter}>
+                <button type='submit' disabled={status === "loading"} className={styles.submitButton}>
                   {status === "loading" ? (
                     <>
-                      <span className='h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white' />
+                      <span className={styles.spinner} />
                       Scheduling…
                     </>
                   ) : (
@@ -232,29 +193,20 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
 
       {/* Modal */}
       {(status === "success" || status === "error") && (
-        <div
-          className='fixed inset-0 z-50 flex items-center justify-center bg-[#0F1A18]/50 backdrop-blur-sm'
-          onClick={handleCloseModal}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className='mx-4 flex w-full max-w-xs flex-col items-center rounded-2xl bg-white px-8 py-9 text-center shadow-2xl'
-            style={{ fontFamily: "Inter, sans-serif" }}>
+        <div className={styles.modalBackdrop} onClick={handleCloseModal}>
+          <div onClick={(e) => e.stopPropagation()} className={styles.modalContent}>
             <div
-              className={`flex h-16 w-16 -rotate-6 items-center justify-center rounded-full border-4 border-dashed text-2xl font-bold ${
-                status === "success" ? "border-[#1F7A64] text-[#1F7A64]" : "border-[#B3492F] text-[#B3492F]"
+              className={`${styles.modalIcon} ${
+                status === "success" ? styles.modalIconSuccess : styles.modalIconError
               }`}>
               {status === "success" ? "✓" : "✕"}
             </div>
-            <h3
-              className='mt-4 text-lg font-semibold tracking-tight text-[#1B2B2A]'
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              {status === "success" ? "Booking confirmed" : "Couldn't schedule"}
-            </h3>
-            <p className='mt-1.5 text-sm leading-relaxed text-[#5C6F6D]'>{message}</p>
+            <h3 className={styles.modalTitle}>{status === "success" ? "Booking confirmed" : "Couldn't schedule"}</h3>
+            <p className={styles.modalMessage}>{message}</p>
             <button
               onClick={handleCloseModal}
-              className={`mt-6 w-full rounded-full py-2.5 text-sm font-semibold text-white transition ${
-                status === "success" ? "bg-[#1F7A64] hover:bg-[#1B6A57]" : "bg-[#B3492F] hover:bg-[#9C3E28]"
+              className={`${styles.modalButton} ${
+                status === "success" ? styles.modalButtonSuccess : styles.modalButtonError
               }`}>
               {status === "success" ? "Go to schedule" : "Try again"}
             </button>

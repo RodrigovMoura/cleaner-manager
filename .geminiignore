@@ -1,0 +1,39 @@
+# Dependências e Builds
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Variáveis de Ambiente e Segredos
+.env
+.env*.local
+*.pem
+*.key
+
+# Prisma e Banco de Dados Local
+prisma/migrations/
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos de IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Configurações e Logs de Agentes/IDEs Locais
+.agents/
+.claude/
+.windsurf/
+skills-locks.json
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git e Sistema Operacional
+.git/
+.DS_Store
+Thumbs.db
