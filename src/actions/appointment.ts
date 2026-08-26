@@ -93,7 +93,6 @@ export async function updateAppointmentStatus(
       return { success: false, message: "Unauthorized: Please log in to continue." };
     }
 
-    // Ensure the appointment belongs to a client owned by the logged-in user
     const appointment = await prisma.appointment.findFirst({
       where: {
         id: appointmentId,
@@ -103,6 +102,7 @@ export async function updateAppointmentStatus(
       },
       include: {
         client: true,
+        invoice: true,
       },
     });
 
@@ -110,12 +110,41 @@ export async function updateAppointmentStatus(
       return { success: false, message: "Appointment not found or unauthorized." };
     }
 
+    // Update appointment status
     await prisma.appointment.update({
       where: { id: appointmentId },
       data: { status: newStatus },
     });
 
+    // Auto-generate invoice if completed, client requires invoice, and none exists yet
+    if (newStatus === "COMPLETED" && appointment.client.enableInvoice && !appointment.invoice) {
+      const currentYear = new Date().getFullYear();
+      const count = await prisma.invoice.count({
+        where: {
+          client: {
+            userId: session.userId,
+          },
+        },
+      });
+
+      const invoiceNumber = `INV-${currentYear}-${String(count + 1).padStart(4, "0")}`;
+      const dueDate = new Date(appointment.date);
+      dueDate.setDate(dueDate.getDate() + 7);
+
+      await prisma.invoice.create({
+        data: {
+          appointmentId: appointment.id,
+          clientId: appointment.clientId,
+          invoiceNumber,
+          amount: appointment.price,
+          dueDate,
+          status: "PENDING",
+        },
+      });
+    }
+
     revalidatePath("/schedule");
+    revalidatePath("/invoices");
     revalidatePath(`/clients/${appointment.clientId}`);
 
     return { success: true, message: `Appointment marked as ${newStatus.toLowerCase()}!` };

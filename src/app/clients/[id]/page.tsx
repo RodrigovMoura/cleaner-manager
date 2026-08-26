@@ -15,6 +15,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
   }
 
   const appointments = client.appointments || [];
+  const invoices = client.invoices || [];
 
   return (
     <div className='max-w-5xl mx-auto p-6 text-gray-900'>
@@ -125,7 +126,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
             </div>
 
             {appointments.length === 0 ? (
-              <div className='bg-gray-50 border border-dashed border-gray-200 rounded-xl p-8 text-center min-h-[160px] flex flex-col items-center justify-center'>
+              <div className='bg-gray-50 border border-dashed border-gray-200 rounded-xl p-8 text-center min-h-40 flex flex-col items-center justify-center'>
                 <p className='text-sm text-gray-600 font-medium mb-1'>No cleanings scheduled for this client.</p>
                 <p className='text-xs text-gray-400'>Use the button above to add an appointment.</p>
               </div>
@@ -175,20 +176,72 @@ export default async function ClientDetailsPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Invoices Placeholder */}
+          {/* Invoices & Billing */}
           <div className='bg-white p-6 border border-gray-200 rounded-xl shadow-sm'>
-            <div className='flex items-center justify-between mb-4'>
+            <div className='flex items-center justify-between mb-4 gap-2 flex-wrap'>
               <h2 className='text-base font-semibold text-gray-900'>Invoices & Billing</h2>
-              <button
-                className='text-xs font-semibold text-gray-400 border border-gray-200 px-3 py-1.5 rounded-lg cursor-not-allowed'
-                disabled>
-                Create Invoice
-              </button>
+              <Link
+                href='/invoices'
+                className='text-xs font-medium text-gray-600 hover:text-gray-900 border border-gray-300 hover:bg-gray-50 px-2.5 py-1.5 rounded-lg transition-colors'>
+                View Invoices
+              </Link>
             </div>
-            <div className='bg-gray-50 border border-dashed border-gray-200 rounded-xl p-8 text-center min-h-[160px] flex flex-col items-center justify-center'>
-              <p className='text-sm text-gray-600 font-medium mb-1'>No invoices generated yet.</p>
-              <p className='text-xs text-gray-400'>The billing module will be implemented in Step 4.</p>
-            </div>
+
+            {invoices.length === 0 ? (
+              <div className='bg-gray-50 border border-dashed border-gray-200 rounded-xl p-8 text-center min-h-[160px] flex flex-col items-center justify-center'>
+                <p className='text-sm text-gray-600 font-medium mb-1'>No invoices generated for this client.</p>
+                <p className='text-xs text-gray-400'>
+                  Invoices are created automatically when appointments are completed.
+                </p>
+              </div>
+            ) : (
+              <div className='max-h-72 overflow-y-auto pr-1 space-y-2.5'>
+                {invoices.map((inv) => {
+                  const dueDateObj = new Date(inv.dueDate);
+                  const formattedDueDate = dueDateObj.toLocaleDateString("en-AU", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  });
+
+                  return (
+                    <div
+                      key={inv.id}
+                      className='border border-gray-100 bg-gray-50/60 p-3.5 rounded-xl flex items-center justify-between gap-4 text-sm'>
+                      <div className='space-y-0.5'>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-mono text-xs font-semibold text-gray-700 bg-gray-200/70 px-1.5 py-0.5 rounded'>
+                            {inv.invoiceNumber}
+                          </span>
+                          <span className='text-xs text-gray-500'>Due {formattedDueDate}</span>
+                        </div>
+                      </div>
+
+                      <div className='flex items-center gap-2.5'>
+                        <span className='text-xs font-semibold text-gray-900'>${Number(inv.amount).toFixed(2)}</span>
+                        <a
+                          href={`/api/invoices/${inv.id}/pdf`}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='text-[11px] font-medium text-blue-600 hover:underline'>
+                          PDF
+                        </a>
+                        <span
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                            inv.status === "PAID"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                              : inv.status === "OVERDUE"
+                                ? "bg-red-50 text-red-700 border border-red-100"
+                                : "bg-amber-50 text-amber-700 border border-amber-100"
+                          }`}>
+                          {inv.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

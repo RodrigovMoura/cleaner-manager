@@ -36,6 +36,11 @@ export async function getClientById(id: string) {
           date: "desc",
         },
       },
+      invoices: {
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
     },
   });
 }
