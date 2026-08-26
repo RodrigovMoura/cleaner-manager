@@ -66,7 +66,7 @@ export async function createAppointment(formData: FormData) {
 export async function getAppointments(view: "upcoming" | "history" = "upcoming") {
   const session = await getSession();
   if (!session?.userId) {
-    throw new Error("Unauthorized");
+    return [];
   }
 
   const isHistory = view === "history";

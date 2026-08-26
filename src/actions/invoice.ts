@@ -84,7 +84,7 @@ export async function createInvoiceForAppointment(appointmentId: string) {
 export async function getInvoices() {
   const session = await getSession();
   if (!session?.userId) {
-    throw new Error("Unauthorized");
+    return [];
   }
 
   return await prisma.invoice.findMany({
@@ -155,7 +155,14 @@ export async function sendInvoiceEmail(invoiceId: string) {
   try {
     const session = await getSession();
     if (!session?.userId) {
-      return { success: false, message: "Unauthorized." };
+      return { success: false, message: "Unauthorized: Please log in to continue." };
+    }
+
+    if (!process.env.RESEND_API_KEY) {
+      return {
+        success: false,
+        message: "Resend API key is not configured. Please set RESEND_API_KEY in your environment variables.",
+      };
     }
 
     const invoice = await prisma.invoice.findFirst({
@@ -169,11 +176,11 @@ export async function sendInvoiceEmail(invoiceId: string) {
     });
 
     if (!invoice) {
-      return { success: false, message: "Invoice not found." };
+      return { success: false, message: "Invoice not found or unauthorized." };
     }
 
     if (!invoice.client.email) {
-      return { success: false, message: "Client does not have an email address." };
+      return { success: false, message: "Client does not have an email address configured." };
     }
 
     // 1. Gera o PDF em Buffer
@@ -220,7 +227,10 @@ export async function sendInvoiceEmail(invoiceId: string) {
 
     if (error) {
       console.error("Resend error:", error);
-      return { success: false, message: `Email failed: ${error.message}` };
+      return {
+        success: false,
+        message: error.message || "Failed to send invoice email via Resend.",
+      };
     }
 
     // 3. Atualiza registro com data de envio
@@ -232,9 +242,11 @@ export async function sendInvoiceEmail(invoiceId: string) {
     revalidatePath("/invoices");
     revalidatePath(`/clients/${invoice.clientId}`);
 
-    return { success: true, message: `Invoice ${invoice.invoiceNumber} sent to ${invoice.client.email}!` };
+    return { success: true, message: `Invoice ${invoice.invoiceNumber} sent successfully to ${invoice.client.email}!` };
   } catch (error) {
     console.error("Failed to send invoice email:", error);
-    return { success: false, message: "An error occurred while sending the email." };
+    const errorMessage =
+      error instanceof Error ? error.message : "An unexpected error occurred while sending the email.";
+    return { success: false, message: errorMessage };
   }
 }

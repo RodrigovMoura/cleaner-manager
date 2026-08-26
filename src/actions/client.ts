@@ -6,16 +6,15 @@ import { getSession } from "@/actions/auth";
 import { revalidatePath } from "next/cache";
 
 export async function getClients() {
-  try {
-    const currSession = await getSession();
-    return await prisma.client.findMany({
-      where: { userId: currSession?.userId || "" },
-      orderBy: { name: "asc" },
-    });
-  } catch (error) {
-    console.error("Error fetching clients:", error);
-    throw new Error("Failed to load client list.");
+  const currSession = await getSession();
+  if (!currSession?.userId) {
+    return [];
   }
+
+  return await prisma.client.findMany({
+    where: { userId: currSession.userId },
+    orderBy: { name: "asc" },
+  });
 }
 
 export async function getClientById(id: string) {
