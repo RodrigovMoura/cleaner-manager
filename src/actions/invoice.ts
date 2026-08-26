@@ -3,6 +3,9 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { resend, FROM_EMAIL } from "@/lib/email";
+import { getInvoiceEmailHtml } from "@/lib/email-templates";
+import { generateInvoicePdfBuffer } from "@/lib/pdf";
 
 // Helper function to generate unique invoice numbers (e.g. INV-2026-0042)
 async function generateInvoiceNumber(userId: string): Promise<string> {
@@ -145,5 +148,93 @@ export async function updateInvoiceStatus(
   } catch (error) {
     console.error("Failed to update invoice status:", error);
     return { success: false, message: "An error occurred while updating status." };
+  }
+}
+
+export async function sendInvoiceEmail(invoiceId: string) {
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return { success: false, message: "Unauthorized." };
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        client: { userId: session.userId },
+      },
+      include: {
+        client: true,
+      },
+    });
+
+    if (!invoice) {
+      return { success: false, message: "Invoice not found." };
+    }
+
+    if (!invoice.client.email) {
+      return { success: false, message: "Client does not have an email address." };
+    }
+
+    // 1. Gera o PDF em Buffer
+    const pdfBuffer = await generateInvoicePdfBuffer({
+      invoice: {
+        invoiceNumber: invoice.invoiceNumber,
+        amount: Number(invoice.amount),
+        dueDate: invoice.dueDate,
+        createdAt: invoice.createdAt,
+        client: {
+          name: invoice.client.name,
+          email: invoice.client.email,
+          phone: invoice.client.phone,
+          address: invoice.client.address,
+        },
+        status: invoice.status,
+      },
+    });
+
+    const dueDateFormatted = new Date(invoice.dueDate).toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    // 2. Dispara via Resend com o PDF anexado
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: invoice.client.email,
+      subject: `Tax Invoice ${invoice.invoiceNumber} - Cleaning Service`,
+      html: getInvoiceEmailHtml({
+        clientName: invoice.client.name,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: Number(invoice.amount),
+        dueDateStr: dueDateFormatted,
+      }),
+      attachments: [
+        {
+          filename: `${invoice.invoiceNumber}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    });
+
+    if (error) {
+      console.error("Resend error:", error);
+      return { success: false, message: `Email failed: ${error.message}` };
+    }
+
+    // 3. Atualiza registro com data de envio
+    await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { sentAt: new Date() },
+    });
+
+    revalidatePath("/invoices");
+    revalidatePath(`/clients/${invoice.clientId}`);
+
+    return { success: true, message: `Invoice ${invoice.invoiceNumber} sent to ${invoice.client.email}!` };
+  } catch (error) {
+    console.error("Failed to send invoice email:", error);
+    return { success: false, message: "An error occurred while sending the email." };
   }
 }

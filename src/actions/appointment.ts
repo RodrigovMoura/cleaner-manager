@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { sendInvoiceEmail } from "./invoice";
 import { Prisma, AppointmentStatus } from "@prisma/client";
 
 export async function createAppointment(formData: FormData) {
@@ -126,18 +127,14 @@ export async function updateAppointmentStatus(
     if (newStatus === "COMPLETED" && appointment.client.enableInvoice && !appointment.invoice) {
       const currentYear = new Date().getFullYear();
       const count = await prisma.invoice.count({
-        where: {
-          client: {
-            userId: session.userId,
-          },
-        },
+        where: { client: { userId: session.userId } },
       });
 
       const invoiceNumber = `INV-${currentYear}-${String(count + 1).padStart(4, "0")}`;
       const dueDate = new Date(appointment.date);
       dueDate.setDate(dueDate.getDate() + 7);
 
-      await prisma.invoice.create({
+      const createdInvoice = await prisma.invoice.create({
         data: {
           appointmentId: appointment.id,
           clientId: appointment.clientId,
@@ -147,6 +144,12 @@ export async function updateAppointmentStatus(
           status: "PENDING",
         },
       });
+
+      // Se autoSendInvoice estiver ativo e cliente tiver email, envia automaticamente
+      if (appointment.client.autoSendInvoice && appointment.client.email) {
+        // Chamada interna assíncrona para envio imediato
+        await sendInvoiceEmail(createdInvoice.id);
+      }
     }
 
     revalidatePath("/schedule");

@@ -110,7 +110,12 @@ export default async function InvoicesPage() {
                         className='px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 rounded-lg transition-colors'>
                         PDF
                       </a>
-                      <InvoiceActions invoiceId={inv.id} currentStatus={inv.status} />
+                      <InvoiceActions
+                        invoiceId={inv.id}
+                        currentStatus={inv.status}
+                        sentAt={inv.sentAt}
+                        clientEmail={inv.client.email}
+                      />
                     </div>
                   </div>
                 </div>
