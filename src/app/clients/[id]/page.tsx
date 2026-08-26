@@ -14,7 +14,27 @@ export default async function ClientDetailsPage({ params }: PageProps) {
     notFound();
   }
 
-  const appointments = client.appointments || [];
+  // Priority: 1. SCHEDULED (asc) -> 2. COMPLETED (desc) -> 3. CANCELLED (desc)
+  const statusPriority: Record<string, number> = {
+    SCHEDULED: 1,
+    COMPLETED: 2,
+    CANCELLED: 3,
+  };
+
+  const appointments = [...(client.appointments || [])].sort((a, b) => {
+    const priorityA = statusPriority[a.status] ?? 99;
+    const priorityB = statusPriority[b.status] ?? 99;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    const timeA = new Date(a.date).getTime();
+    const timeB = new Date(b.date).getTime();
+
+    return a.status === "SCHEDULED" ? timeA - timeB : timeB - timeA;
+  });
+
   const invoices = client.invoices || [];
 
   return (
@@ -118,7 +138,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                   View Schedule
                 </Link>
                 <Link
-                  href='/schedule/new'
+                  href={`/schedule/new?clientId=${client.id}`}
                   className='text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors'>
                   + Schedule Cleaning
                 </Link>

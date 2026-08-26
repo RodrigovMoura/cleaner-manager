@@ -10,7 +10,12 @@ interface ClientOption {
   name: string;
 }
 
-export default function NewAppointmentForm({ clients }: { clients: ClientOption[] }) {
+interface NewAppointmentFormProps {
+  clients: ClientOption[];
+  defaultClientId?: string;
+}
+
+export default function NewAppointmentForm({ clients, defaultClientId }: NewAppointmentFormProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -68,7 +73,12 @@ export default function NewAppointmentForm({ clients }: { clients: ClientOption[
                   Client
                 </label>
                 <div className={styles.selectContainer}>
-                  <select id='clientId' name='clientId' required defaultValue='' className={styles.select}>
+                  <select
+                    id='clientId'
+                    name='clientId'
+                    required
+                    defaultValue={defaultClientId || ""}
+                    className={styles.select}>
                     <option value='' disabled>
                       Select a client
                     </option>

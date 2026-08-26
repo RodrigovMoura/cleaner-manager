@@ -100,7 +100,11 @@ export async function getInvoices() {
   });
 }
 
-export async function updateInvoiceStatus(invoiceId: string, newStatus: "PENDING" | "PAID" | "OVERDUE") {
+export async function updateInvoiceStatus(
+  invoiceId: string,
+  newStatus: "PENDING" | "PAID" | "OVERDUE",
+  paidAtDate?: string,
+) {
   try {
     const session = await getSession();
     if (!session?.userId) {
@@ -114,20 +118,23 @@ export async function updateInvoiceStatus(invoiceId: string, newStatus: "PENDING
           userId: session.userId,
         },
       },
-      include: {
-        client: true,
-      },
     });
 
     if (!invoice) {
       return { success: false, message: "Invoice not found or unauthorized." };
     }
 
+    // Determine paidAt timestamp
+    let paidAtValue: Date | null = null;
+    if (newStatus === "PAID") {
+      paidAtValue = paidAtDate ? new Date(paidAtDate) : new Date();
+    }
+
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: {
         status: newStatus,
-        paidAt: newStatus === "PAID" ? new Date() : null,
+        paidAt: paidAtValue,
       },
     });
 
@@ -137,6 +144,6 @@ export async function updateInvoiceStatus(invoiceId: string, newStatus: "PENDING
     return { success: true, message: `Invoice marked as ${newStatus.toLowerCase()}!` };
   } catch (error) {
     console.error("Failed to update invoice status:", error);
-    return { success: false, message: "An error occurred while updating the invoice." };
+    return { success: false, message: "An error occurred while updating status." };
   }
 }

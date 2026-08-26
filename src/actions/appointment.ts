@@ -62,23 +62,29 @@ export async function createAppointment(formData: FormData) {
   }
 }
 
-export async function getAppointments() {
+export async function getAppointments(view: "upcoming" | "history" = "upcoming") {
   const session = await getSession();
   if (!session?.userId) {
     throw new Error("Unauthorized");
   }
+
+  const isHistory = view === "history";
 
   return await prisma.appointment.findMany({
     where: {
       client: {
         userId: session.userId,
       },
+      status: isHistory
+        ? { in: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED] }
+        : AppointmentStatus.SCHEDULED,
     },
     include: {
       client: true,
+      invoice: true,
     },
     orderBy: {
-      date: "asc",
+      date: isHistory ? "desc" : "asc",
     },
   });
 }

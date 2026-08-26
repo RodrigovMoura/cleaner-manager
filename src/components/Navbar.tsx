@@ -68,16 +68,6 @@ export default function Navbar() {
               );
             })}
           </nav>
-
-          {/* Ações do Lado Direito (Desktop & Mobile) */}
-          <div className='flex items-center gap-2'>
-            <Link
-              href='/schedule/new'
-              className='px-3 py-1.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors flex items-center gap-1'>
-              <span>+</span>
-              <span className='hidden sm:inline'>Schedule</span>
-            </Link>
-          </div>
         </div>
       </header>
 
