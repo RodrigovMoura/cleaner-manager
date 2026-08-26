@@ -11,6 +11,7 @@ interface ClientData {
   email: string | null;
   phone: string | null;
   address: string | null;
+  defaultPrice?: number | null;
   enableAppointmentReminder: boolean;
   reminderDaysBefore: number;
   enableInvoice: boolean;

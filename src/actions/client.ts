@@ -30,6 +30,13 @@ export async function getClientById(id: string) {
       id,
       userId: session.userId,
     },
+    include: {
+      appointments: {
+        orderBy: {
+          date: "desc",
+        },
+      },
+    },
   });
 }
 

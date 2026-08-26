@@ -45,6 +45,7 @@ next-env.d.ts
 
 # Configurações de IA e IDEs locais
 .agents/
+.geminiignore
 .claude/
 .windsurf/
 .vscode/
