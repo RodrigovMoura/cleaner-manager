@@ -27,6 +27,10 @@ export async function createAppointment(formData: FormData) {
     const price = parseFloat(priceStr);
     const occurrences = recurrence === "biweekly" ? parseInt(occurrencesStr || "1", 10) : 1;
 
+    if (baseDate.getTime() < Date.now()) {
+      return { success: false, message: "Appointment date cannot be in the past." };
+    }
+
     if (isNaN(price)) {
       return { success: false, message: "Invalid price format." };
     }

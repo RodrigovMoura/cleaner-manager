@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateClient, deleteClient } from "@/actions/client";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface ClientData {
   id: string;
@@ -130,14 +131,7 @@ export default function EditClientForm({ client }: { client: ClientData }) {
               <label htmlFor='address' className='block text-sm font-medium text-gray-700 mb-1'>
                 Property Address
               </label>
-              <input
-                id='address'
-                name='address'
-                type='text'
-                defaultValue={client.address || ""}
-                placeholder='123 Ocean Street, Suburb'
-                className='w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-              />
+              <AddressAutocomplete name='address' defaultValue={client.address || undefined} required />
             </div>
           </div>
         </div>

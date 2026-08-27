@@ -45,6 +45,9 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
     }
   };
 
+  const now = new Date();
+  const minDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
   return (
     <>
       <div className={styles.formContainer}>
@@ -98,7 +101,14 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
                   <label htmlFor='date' className={styles.fieldLabel}>
                     Date & time
                   </label>
-                  <input id='date' type='datetime-local' name='date' required className={styles.input} />
+                  <input
+                    id='date'
+                    type='datetime-local'
+                    name='date'
+                    required
+                    className={styles.input}
+                    min={minDateTime}
+                  />
                 </div>
                 <div>
                   <label htmlFor='price' className={styles.fieldLabel}>
