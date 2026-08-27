@@ -6,36 +6,92 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { jwtVerify } from "jose";
 import { createSession, destroySession } from "@/lib/auth";
+import {
+  isEmailAuthorized,
+  sanitizeInput,
+  validateRegistrationData,
+} from "@/lib/validation";
 
-export async function registerUser(formData: FormData) {
-  const name = formData.get("name") as string;
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+export type AuthActionResult = {
+  success: boolean;
+  message?: string;
+  error?: string;
+};
 
-  if (!name || !email || !password) {
-    return { error: "Fill all fields." };
-  }
+export async function registerUser(formData: FormData): Promise<AuthActionResult | undefined> {
+  const rawName = formData.get("name") as string;
+  const rawEmail = formData.get("email") as string;
+  const rawPassword = formData.get("password") as string;
+  const rawConfirmPassword = formData.get("confirmPassword") as string | null;
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  const validation = validateRegistrationData({
+    name: rawName,
+    email: rawEmail,
+    password: rawPassword,
+    ...(rawConfirmPassword !== null ? { confirmPassword: rawConfirmPassword } : {}),
   });
 
-  if (existingUser) {
-    return { error: "E-mail already exist." };
+  if (!validation.isValid) {
+    const firstError =
+      validation.errors.name ||
+      validation.errors.email ||
+      validation.errors.password ||
+      validation.errors.confirmPassword ||
+      "Invalid registration data provided.";
+    return {
+      success: false,
+      error: firstError,
+      message: firstError,
+    };
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const name = sanitizeInput(rawName);
+  const email = (rawEmail || "").trim().toLowerCase();
+  const password = rawPassword;
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-    },
-  });
+  // 1. Email Allowlist Validation
+  if (!isEmailAuthorized(email)) {
+    return {
+      success: false,
+      error: "Registration restricted: This email is not authorized to register on this platform.",
+      message: "Registration restricted: This email is not authorized to register on this platform.",
+    };
+  }
 
-  await createSession(user.id);
-  redirect("/dashboard");
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return {
+        success: false,
+        error: "An account with this email already exists.",
+        message: "An account with this email already exists.",
+      };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
+    });
+
+    await createSession(user.id);
+  } catch (error) {
+    console.error("Registration error:", error);
+    return {
+      success: false,
+      error: "An unexpected error occurred during registration. Please try again.",
+      message: "An unexpected error occurred during registration. Please try again.",
+    };
+  }
+
+  redirect("/");
 }
 
 export async function loginUser(formData: FormData) {
@@ -61,7 +117,7 @@ export async function loginUser(formData: FormData) {
   }
 
   await createSession(user.id);
-  redirect("/clients");
+  redirect("/");
 }
 
 export async function logoutUser() {
