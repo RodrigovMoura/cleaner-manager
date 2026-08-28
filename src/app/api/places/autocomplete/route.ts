@@ -16,30 +16,41 @@ export async function GET(request: NextRequest) {
   const input = searchParams.get("input");
   const sessionToken = searchParams.get("sessionToken");
 
-  if (!input || input.trim().length < 3) {
+  if (!input || input.trim().length < 2) {
     return NextResponse.json({ predictions: [] });
   }
 
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: "Google Places API key is not configured." }, { status: 500 });
+    console.error("Google Places API key is not configured in environment variables.");
+    return NextResponse.json({ error: "Google Places API key is not configured.", predictions: [] }, { status: 500 });
   }
 
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
-    url.searchParams.set("input", input);
+    url.searchParams.set("input", input.trim());
     url.searchParams.set("key", apiKey);
     url.searchParams.set("components", "country:au"); // Restringe para a Austrália
-    url.searchParams.set("types", "address");
+
     if (sessionToken) {
       url.searchParams.set("sessiontoken", sessionToken);
     }
 
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      console.error("Google Places API HTTP error:", res.status, res.statusText);
+      return NextResponse.json({ predictions: [] });
+    }
+
     const data: GoogleAutocompleteResponse = await res.json();
 
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      console.error("Google Places API error:", data.status, data.error_message);
+      console.error("Google Places API error status:", data.status, data.error_message);
       return NextResponse.json({ predictions: [] });
     }
 

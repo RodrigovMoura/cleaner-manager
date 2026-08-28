@@ -43,7 +43,7 @@ export default async function HomePage() {
         },
         include: { client: true },
         orderBy: { date: "asc" },
-        take: 4,
+        take: 5,
       }),
 
       // 4. Invoices pendentes ou atrasadas
@@ -78,25 +78,27 @@ export default async function HomePage() {
   });
 
   return (
-    <div className='max-w-5xl mx-auto p-4 sm:p-6 text-gray-900 space-y-6'>
+    <div className='max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 text-gray-900 space-y-6 sm:space-y-8'>
       {/* Top Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200'>
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200'>
         <div>
-          <h1 className='text-2xl sm:text-3xl font-bold tracking-tight'>Dashboard</h1>
-          <p className='text-xs sm:text-sm text-gray-500 mt-0.5'>{formattedCurrentDate}</p>
+          <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-gray-900'>Dashboard</h1>
+          <p className='text-xs sm:text-sm text-gray-500 mt-1 capitalize'>{formattedCurrentDate}</p>
         </div>
 
         {/* Quick Action Buttons */}
-        <div className='flex items-center gap-2 flex-wrap'>
+        <div className='flex items-center gap-2.5 flex-wrap sm:flex-nowrap'>
           <Link
             href='/schedule/new'
-            className='flex-1 sm:flex-none text-center px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors'>
-            + Schedule Cleaning
+            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all'>
+            <span>＋</span>
+            <span>Schedule Cleaning</span>
           </Link>
           <Link
             href='/clients/new'
-            className='flex-1 sm:flex-none text-center px-4 py-2.5 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl shadow-sm transition-colors'>
-            + Add Client
+            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl shadow-xs transition-all'>
+            <span>＋</span>
+            <span>Add Client</span>
           </Link>
         </div>
       </div>
@@ -104,89 +106,98 @@ export default async function HomePage() {
       {/* KPI Cards Grid */}
       <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4'>
         {/* Today's Cleanings */}
-        <div className='bg-white p-4 rounded-xl border border-gray-200 shadow-sm'>
+        <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
           <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
             Today&apos;s Jobs
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl font-bold text-gray-900'>{todaysAppointments.length}</span>
-            <span className='text-xs text-gray-400'>cleanings</span>
+            <span className='text-2xl sm:text-3xl font-bold text-gray-900'>{todaysAppointments.length}</span>
+            <span className='text-xs text-gray-400 font-medium'>cleanings</span>
           </div>
         </div>
 
         {/* Pending Revenue */}
-        <div className='bg-white p-4 rounded-xl border border-gray-200 shadow-sm'>
+        <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
           <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
             Pending Invoices
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl font-bold text-amber-600'>${totalPendingAmount.toFixed(2)}</span>
+            <span className='text-2xl sm:text-3xl font-bold text-amber-600'>${totalPendingAmount.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Monthly Earnings */}
-        <div className='bg-white p-4 rounded-xl border border-gray-200 shadow-sm'>
+        <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
           <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
             Earned this Month
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl font-bold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
+            <span className='text-2xl sm:text-3xl font-bold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Total Clients */}
-        <div className='bg-white p-4 rounded-xl border border-gray-200 shadow-sm'>
+        <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
           <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
             Active Clients
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl font-bold text-blue-600'>{clientsCount}</span>
-            <span className='text-xs text-gray-400'>total</span>
+            <span className='text-2xl sm:text-3xl font-bold text-blue-600'>{clientsCount}</span>
+            <span className='text-xs text-gray-400 font-medium'>total</span>
           </div>
         </div>
       </div>
 
-      {/* Quick Navigation Hub (Touch-friendly on mobile) */}
-      <div className='grid grid-cols-3 gap-2 sm:gap-4'>
+      {/* Quick Navigation Hub */}
+      <div className='grid grid-cols-3 gap-2.5 sm:gap-4'>
         <Link
           href='/schedule'
-          className='p-3 sm:p-4 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-xl shadow-sm text-center transition-all group'>
-          <span className='block text-lg sm:text-xl mb-1 group-hover:scale-110 transition-transform'>📅</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800'>Schedule</span>
+          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
+          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📅</span>
+          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
+            Schedule
+          </span>
         </Link>
 
         <Link
           href='/clients'
-          className='p-3 sm:p-4 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-xl shadow-sm text-center transition-all group'>
-          <span className='block text-lg sm:text-xl mb-1 group-hover:scale-110 transition-transform'>👥</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800'>Clients</span>
+          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
+          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>👥</span>
+          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
+            Clients
+          </span>
         </Link>
 
         <Link
           href='/invoices'
-          className='p-3 sm:p-4 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-xl shadow-sm text-center transition-all group'>
-          <span className='block text-lg sm:text-xl mb-1 group-hover:scale-110 transition-transform'>📄</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800'>Invoices</span>
+          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
+          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📄</span>
+          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
+            Invoices
+          </span>
         </Link>
       </div>
 
       {/* Main Content Area */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         {/* Left Column: Upcoming Cleanings (Takes 2 cols on desktop) */}
-        <div className='lg:col-span-2 space-y-3'>
+        <div className='lg:col-span-2 space-y-3.5'>
           <div className='flex items-center justify-between'>
             <h2 className='text-base font-bold text-gray-900'>Upcoming Cleanings</h2>
-            <Link href='/schedule' className='text-xs font-semibold text-blue-600 hover:underline'>
-              View All
+            <Link href='/schedule' className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+              View All →
             </Link>
           </div>
 
           {upcomingAppointments.length === 0 ? (
-            <div className='bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center'>
-              <p className='text-sm font-medium text-gray-600 mb-1'>No upcoming cleanings</p>
-              <p className='text-xs text-gray-400 mb-3'>Schedule your next appointments to see them here.</p>
-              <Link href='/schedule/new' className='inline-block text-xs font-semibold text-blue-600 hover:underline'>
-                + Schedule Now
+            <div className='bg-white border border-dashed border-gray-300 rounded-2xl p-8 text-center'>
+              <span className='text-2xl block mb-2'>📅</span>
+              <p className='text-sm font-medium text-gray-700 mb-1'>No upcoming cleanings</p>
+              <p className='text-xs text-gray-400 mb-4'>Schedule your next appointments to see them here.</p>
+              <Link
+                href='/schedule/new'
+                className='inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+                ＋ Schedule an appointment
               </Link>
             </div>
           ) : (
@@ -206,24 +217,26 @@ export default async function HomePage() {
                 return (
                   <div
                     key={apt.id}
-                    className='p-3.5 bg-white border border-gray-200 rounded-xl shadow-sm flex items-center justify-between gap-3 hover:border-gray-300 transition-colors'>
-                    <div className='space-y-0.5'>
-                      <div className='flex items-center gap-2'>
+                    className='p-4 bg-white border border-gray-200 rounded-2xl shadow-xs flex items-center justify-between gap-3 hover:border-gray-300 hover:shadow-sm transition-all'>
+                    <div className='space-y-1 min-w-0 flex-1'>
+                      <div className='flex items-center gap-2 flex-wrap'>
                         <Link
                           href={`/clients/${apt.client.id}`}
-                          className='font-semibold text-sm text-gray-900 hover:underline'>
+                          className='font-semibold text-sm text-gray-900 hover:text-blue-600 hover:underline truncate'>
                           {apt.client.name}
                         </Link>
-                        <span className='text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700'>
+                        <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100/60'>
                           {formattedTime}
                         </span>
                       </div>
-                      <p className='text-xs text-gray-500'>
+                      <p className='text-xs text-gray-500 truncate'>
                         {formattedDate} {apt.client.address && `• ${apt.client.address}`}
                       </p>
                     </div>
 
-                    <span className='text-sm font-bold text-gray-900'>${Number(apt.price).toFixed(2)}</span>
+                    <span className='text-sm font-bold text-gray-900 shrink-0 ml-2'>
+                      ${Number(apt.price).toFixed(2)}
+                    </span>
                   </div>
                 );
               })}
@@ -232,24 +245,28 @@ export default async function HomePage() {
         </div>
 
         {/* Right Column: Pending Invoices Summary */}
-        <div className='space-y-3'>
+        <div className='space-y-3.5'>
           <div className='flex items-center justify-between'>
             <h2 className='text-base font-bold text-gray-900'>Pending Payments</h2>
-            <Link href='/invoices' className='text-xs font-semibold text-blue-600 hover:underline'>
-              View Invoices
+            <Link href='/invoices' className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+              View Invoices →
             </Link>
           </div>
 
-          <div className='bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4'>
+          <div className='bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4'>
             <div>
-              <span className='text-xs text-gray-500 block'>Total Unpaid Balance</span>
-              <span className='text-2xl font-bold text-gray-900'>${totalPendingAmount.toFixed(2)}</span>
+              <span className='text-xs font-medium text-gray-500 block uppercase tracking-wider mb-0.5'>
+                Total Unpaid Balance
+              </span>
+              <span className='text-2xl sm:text-3xl font-bold text-gray-900'>${totalPendingAmount.toFixed(2)}</span>
             </div>
 
-            <div className='border-t border-gray-100 pt-3'>
+            <div className='border-t border-gray-100 pt-3.5 space-y-1.5'>
               <div className='flex justify-between text-xs py-1 text-gray-600'>
                 <span>Pending Invoices</span>
-                <span className='font-semibold'>{pendingInvoices.filter((i) => i.status === "PENDING").length}</span>
+                <span className='font-semibold text-gray-900'>
+                  {pendingInvoices.filter((i) => i.status === "PENDING").length}
+                </span>
               </div>
               <div className='flex justify-between text-xs py-1 text-gray-600'>
                 <span>Overdue Invoices</span>
@@ -261,7 +278,7 @@ export default async function HomePage() {
 
             <Link
               href='/invoices'
-              className='block w-full text-center py-2 px-3 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors'>
+              className='block w-full text-center py-2.5 px-3 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 rounded-xl transition-colors'>
               Manage Payments & Invoices →
             </Link>
           </div>

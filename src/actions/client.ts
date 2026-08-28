@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { getSession } from "@/actions/auth";
 import { revalidatePath } from "next/cache";
+import { sanitizeInput, validateClientData, ClientErrors } from "@/lib/validation";
+
+export type ClientActionResult = {
+  success: boolean;
+  message: string;
+  errors?: ClientErrors;
+};
 
 export async function getClients() {
   const currSession = await getSession();
@@ -44,7 +51,7 @@ export async function getClientById(id: string) {
   });
 }
 
-export async function updateClient(id: string, formData: FormData) {
+export async function updateClient(id: string, formData: FormData): Promise<ClientActionResult> {
   try {
     const session = await getSession();
 
@@ -52,10 +59,10 @@ export async function updateClient(id: string, formData: FormData) {
       return { success: false, message: "Unauthorized: Please log in to continue." };
     }
 
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const phone = formData.get("phone") as string;
-    const address = formData.get("address") as string;
+    const rawName = formData.get("name") as string;
+    const rawEmail = formData.get("email") as string;
+    const rawPhone = formData.get("phone") as string;
+    const rawAddress = formData.get("address") as string;
 
     const enableAppointmentReminder = formData.get("enableAppointmentReminder") === "on";
     const reminderDaysBefore = parseInt((formData.get("reminderDaysBefore") as string) || "1", 10);
@@ -63,8 +70,29 @@ export async function updateClient(id: string, formData: FormData) {
     const autoSendInvoice = formData.get("autoSendInvoice") === "on";
     const enablePaymentReminder = formData.get("enablePaymentReminder") === "on";
 
-    if (!name || name.trim() === "") {
-      return { success: false, message: "Client name is required." };
+    const name = sanitizeInput(rawName);
+    const email = rawEmail ? sanitizeInput(rawEmail).toLowerCase() : "";
+    const phone = sanitizeInput(rawPhone);
+    const address = sanitizeInput(rawAddress);
+
+    // Validação profunda dos dados
+    const validation = validateClientData({
+      name,
+      phone,
+      email,
+      address,
+      reminderDaysBefore,
+      enableInvoice,
+      autoSendInvoice,
+    });
+
+    if (!validation.isValid) {
+      const firstError = Object.values(validation.errors)[0] || "Invalid client data provided.";
+      return {
+        success: false,
+        message: firstError,
+        errors: validation.errors,
+      };
     }
 
     await prisma.client.updateMany({
@@ -73,12 +101,11 @@ export async function updateClient(id: string, formData: FormData) {
         userId: session.userId,
       },
       data: {
-        userId: session.userId,
         name,
         email: email || null,
-        phone: phone,
-        address: address,
-        defaultPrice: 0o0,
+        phone,
+        address,
+        defaultPrice: 0,
         enableAppointmentReminder,
         reminderDaysBefore,
         enableInvoice,
@@ -88,6 +115,7 @@ export async function updateClient(id: string, formData: FormData) {
     });
 
     revalidatePath("/clients");
+    revalidatePath(`/clients/${id}`);
     revalidatePath(`/clients/${id}/edit`);
 
     return { success: true, message: "Client updated successfully!" };
@@ -97,18 +125,18 @@ export async function updateClient(id: string, formData: FormData) {
   }
 }
 
-export async function createClient(formData: FormData) {
+export async function createClient(formData: FormData): Promise<ClientActionResult> {
   try {
     const session = await getSession();
 
     if (!session?.userId) {
-      throw new Error("Unauthorized: Please log in to continue.");
+      return { success: false, message: "Unauthorized: Please log in to continue." };
     }
 
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const phone = formData.get("phone") as string;
-    const address = formData.get("address") as string;
+    const rawName = formData.get("name") as string;
+    const rawEmail = formData.get("email") as string;
+    const rawPhone = formData.get("phone") as string;
+    const rawAddress = formData.get("address") as string;
 
     // Toggle values from checkboxes
     const enableAppointmentReminder = formData.get("enableAppointmentReminder") === "on";
@@ -117,8 +145,29 @@ export async function createClient(formData: FormData) {
     const autoSendInvoice = formData.get("autoSendInvoice") === "on";
     const enablePaymentReminder = formData.get("enablePaymentReminder") === "on";
 
-    if (!name || name.trim() === "") {
-      throw new Error("Client name is required.");
+    const name = sanitizeInput(rawName);
+    const email = rawEmail ? sanitizeInput(rawEmail).toLowerCase() : "";
+    const phone = sanitizeInput(rawPhone);
+    const address = sanitizeInput(rawAddress);
+
+    // Validação profunda dos dados
+    const validation = validateClientData({
+      name,
+      phone,
+      email,
+      address,
+      reminderDaysBefore,
+      enableInvoice,
+      autoSendInvoice,
+    });
+
+    if (!validation.isValid) {
+      const firstError = Object.values(validation.errors)[0] || "Invalid client data provided.";
+      return {
+        success: false,
+        message: firstError,
+        errors: validation.errors,
+      };
     }
 
     await prisma.client.create({
@@ -126,9 +175,9 @@ export async function createClient(formData: FormData) {
         userId: session.userId,
         name,
         email: email || null,
-        phone: phone,
-        address: address,
-        defaultPrice: 0o0,
+        phone,
+        address,
+        defaultPrice: 0,
         enableAppointmentReminder,
         reminderDaysBefore,
         enableInvoice,

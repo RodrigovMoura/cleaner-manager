@@ -140,9 +140,9 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
     <>
       {/* Floating Toast Notification */}
       {toast && (
-        <div className='fixed top-5 right-5 z-50 max-w-sm sm:max-w-md w-full animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto'>
+        <div className='fixed top-4 inset-x-4 sm:inset-x-auto sm:right-5 sm:max-w-md z-50 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto'>
           <div
-            className={`p-4 rounded-xl shadow-xl border flex items-start gap-3.5 ${
+            className={`p-4 rounded-2xl shadow-xl border flex items-start gap-3.5 ${
               toast.type === "success"
                 ? "bg-white border-emerald-200 text-emerald-950 shadow-emerald-500/10"
                 : "bg-white border-red-200 text-red-950 shadow-red-500/10"
@@ -168,13 +168,13 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
 
             <div className='flex-1 pr-1'>
               <h4
-                className={`text-sm font-semibold ${
+                className={`text-xs sm:text-sm font-bold ${
                   toast.type === "success" ? "text-emerald-900" : "text-red-900"
                 }`}>
                 {toast.title}
               </h4>
               <p
-                className={`text-xs mt-1 leading-relaxed break-words ${
+                className={`text-xs mt-0.5 leading-relaxed break-words ${
                   toast.type === "success" ? "text-emerald-700" : "text-red-700"
                 }`}>
                 {toast.message}
@@ -185,7 +185,7 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
               type='button'
               onClick={() => setToast(null)}
               aria-label='Close notification'
-              className='text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1 rounded-lg transition-colors shrink-0 -mr-1 -mt-1'>
+              className='text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-lg transition-colors shrink-0'>
               <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
                 <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M6 18L18 6M6 6l12 12' />
               </svg>
@@ -200,10 +200,10 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
           onClick={() => setIsEmailModalOpen(true)}
           disabled={sendingEmail}
           title={formattedLastSent ? `Last sent on ${formattedLastSent}` : "Send invoice PDF to client"}
-          className={`px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 ${
+          className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-50 ${
             sentAt
-              ? "border-gray-200 text-gray-600 hover:bg-gray-50"
-              : "border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100"
+              ? "border-gray-300 text-gray-700 hover:bg-gray-50 shadow-2xs"
+              : "border-blue-200 text-blue-700 bg-blue-50/70 hover:bg-blue-100 shadow-2xs"
           }`}>
           {sentAt ? "Resend" : "Send Invoice"}
         </button>
@@ -213,7 +213,7 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
           <button
             onClick={handleMarkAsUnpaid}
             disabled={loadingPayment}
-            className='px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 border border-gray-200 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50'>
+            className='px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-300 hover:bg-gray-50 rounded-lg transition-all shadow-2xs disabled:opacity-50'>
             {loadingPayment ? "Updating..." : "Mark as Unpaid"}
           </button>
         ) : (
@@ -223,7 +223,7 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
               setIsPaymentModalOpen(true);
             }}
             disabled={loadingPayment}
-            className='px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50'>
+            className='px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg transition-all shadow-2xs disabled:opacity-50'>
             Mark as Paid
           </button>
         )}
@@ -231,54 +231,52 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
         {/* 1. Payment Date Modal */}
         {isPaymentModalOpen && (
           <div
-            className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4'
+            className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4'
             onClick={() => setIsPaymentModalOpen(false)}>
             <div
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-100'>
+              className='bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 border border-gray-100'>
               <div>
-                <h3 className='text-base font-semibold text-gray-900'>Record Payment</h3>
+                <h3 className='text-base font-bold text-gray-900'>Record Payment</h3>
                 <p className='text-xs text-gray-500 mt-0.5'>Select the date this payment was received.</p>
               </div>
 
-              <div className='space-y-3'>
-                <div>
-                  <label htmlFor='paymentDate' className='block text-xs font-medium text-gray-700 mb-1'>
-                    Payment Date
-                  </label>
-                  <input
-                    id='paymentDate'
-                    type='date'
-                    max={todayStr}
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    className='w-full text-sm border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500'
-                  />
-                </div>
+              <div className='space-y-2'>
+                <label htmlFor='paymentDate' className='block text-xs font-semibold text-gray-700'>
+                  Payment Date
+                </label>
+                <input
+                  id='paymentDate'
+                  type='date'
+                  max={todayStr}
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className='w-full text-sm border border-gray-300 rounded-xl px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600'
+                />
 
                 {paymentDate !== todayStr && (
                   <button
                     type='button'
                     onClick={() => setPaymentDate(todayStr)}
-                    className='text-xs text-emerald-600 hover:underline font-medium'>
+                    className='text-xs text-emerald-600 hover:underline font-semibold'>
                     Set to Today
                   </button>
                 )}
               </div>
 
-              <div className='flex items-center justify-end gap-2 pt-2 border-t border-gray-100'>
+              <div className='flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100'>
                 <button
                   type='button'
                   onClick={() => setIsPaymentModalOpen(false)}
                   disabled={loadingPayment}
-                  className='px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors'>
+                  className='px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors'>
                   Cancel
                 </button>
                 <button
                   type='button'
                   onClick={() => handleMarkAsPaid(paymentDate)}
                   disabled={loadingPayment || !paymentDate}
-                  className='px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-sm disabled:opacity-50'>
+                  className='px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs disabled:opacity-50'>
                   {loadingPayment ? "Saving..." : "Confirm Payment"}
                 </button>
               </div>
@@ -289,53 +287,53 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
         {/* 2. Email Confirmation Modal */}
         {isEmailModalOpen && (
           <div
-            className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4'
+            className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4'
             onClick={() => !sendingEmail && setIsEmailModalOpen(false)}>
             <div
               onClick={(e) => e.stopPropagation()}
-              className='bg-white rounded-xl shadow-xl max-w-sm w-full p-5 space-y-4 border border-gray-100'>
+              className='bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 border border-gray-100'>
               <div>
-                <h3 className='text-base font-semibold text-gray-900'>
+                <h3 className='text-base font-bold text-gray-900'>
                   {sentAt ? "Resend Invoice Email?" : "Send Invoice Email?"}
                 </h3>
                 {clientEmail ? (
                   <p className='text-xs text-gray-500 mt-1'>
-                    Recipient: <span className='font-medium text-gray-700'>{clientEmail}</span>
+                    Recipient: <span className='font-semibold text-gray-800'>{clientEmail}</span>
                   </p>
                 ) : (
-                  <div className='bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700 mt-2 space-y-0.5'>
-                    <p className='font-semibold'>⚠️ No email address</p>
+                  <div className='bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 mt-2 space-y-0.5'>
+                    <p className='font-bold'>⚠️ No email address</p>
                     <p>This client has no email registered. Please update client details first.</p>
                   </div>
                 )}
               </div>
 
               {sentAt ? (
-                <div className='bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1'>
-                  <p className='font-semibold'>⚠️ Invoice already sent</p>
+                <div className='bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1'>
+                  <p className='font-bold'>⚠️ Invoice already sent</p>
                   <p>
                     This invoice was sent on <strong>{formattedLastSent}</strong>. Do you want to dispatch it again?
                   </p>
                 </div>
               ) : clientEmail ? (
-                <p className='text-xs text-gray-600'>
-                  The tax invoice PDF will be generated and sent directly to the client via email.
+                <p className='text-xs text-gray-600 leading-relaxed'>
+                  The tax invoice PDF will be attached and delivered directly to the client via email.
                 </p>
               ) : null}
 
-              <div className='flex items-center justify-end gap-2 pt-2 border-t border-gray-100'>
+              <div className='flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100'>
                 <button
                   type='button'
                   onClick={() => setIsEmailModalOpen(false)}
                   disabled={sendingEmail}
-                  className='px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50'>
+                  className='px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-50'>
                   Cancel
                 </button>
                 <button
                   type='button'
                   onClick={handleConfirmSendEmail}
                   disabled={sendingEmail || !clientEmail}
-                  className='px-3.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5'>
+                  className='px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5'>
                   {sendingEmail && (
                     <svg className='animate-spin h-3.5 w-3.5 text-white' fill='none' viewBox='0 0 24 24'>
                       <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' />

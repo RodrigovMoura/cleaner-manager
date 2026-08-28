@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Navbar from "@/components/Navbar";
 import { Geist, Geist_Mono } from "next/font/google";
 
@@ -14,16 +14,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cleaner Manager",
-  description: "Residential cleaning service management",
+  title: {
+    default: "Cleaner Manager",
+    template: "%s | Cleaner Manager",
+  },
+  description: "Residential cleaning service schedule and invoice management platform",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export const viewport: Viewport = {
+  themeColor: "#f9fafb",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang='en' className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className='bg-gray-50 text-gray-900 antialiased min-h-screen flex flex-col'>
+      <body className='bg-gray-50 text-gray-900 antialiased min-h-screen flex flex-col font-sans'>
         <Navbar />
-        <main className='flex-1'>{children}</main>
+        <main className='flex-1 w-full'>{children}</main>
       </body>
     </html>
   );

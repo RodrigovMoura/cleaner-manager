@@ -4,8 +4,11 @@ import {
   validateName,
   validateEmail,
   validatePassword,
+  validatePhone,
+  validateAddress,
   isEmailAuthorized,
   validateRegistrationData,
+  validateClientData,
 } from "./validation";
 
 describe("Validation & Security Library", () => {
@@ -109,6 +112,68 @@ describe("Validation & Security Library", () => {
     });
   });
 
+  describe("validatePhone", () => {
+    it("should accept valid Australian and international phone numbers", () => {
+      expect(validatePhone("+61 400 000 000").isValid).toBe(true);
+      expect(validatePhone("0412 345 678").isValid).toBe(true);
+      expect(validatePhone("(08) 9222 3333").isValid).toBe(true);
+      expect(validatePhone("0412345678").isValid).toBe(true);
+      expect(validatePhone("+1-555-123-4567").isValid).toBe(true);
+    });
+
+    it("should reject empty phone when required", () => {
+      expect(validatePhone("", true).isValid).toBe(false);
+      expect(validatePhone("   ", true).isValid).toBe(false);
+      expect(validatePhone(null, true).isValid).toBe(false);
+    });
+
+    it("should allow empty phone when optional", () => {
+      expect(validatePhone("", false).isValid).toBe(true);
+      expect(validatePhone(null, false).isValid).toBe(true);
+    });
+
+    it("should reject phone numbers with letters or script tokens", () => {
+      expect(validatePhone("0412abc678").isValid).toBe(false);
+      expect(validatePhone("<script>").isValid).toBe(false);
+    });
+
+    it("should reject numbers with too few digits (less than 8)", () => {
+      const res = validatePhone("12345");
+      expect(res.isValid).toBe(false);
+      expect(res.error).toContain("at least 8 digits");
+    });
+
+    it("should reject numbers with too many digits (more than 15)", () => {
+      const res = validatePhone("1234567890123456");
+      expect(res.isValid).toBe(false);
+      expect(res.error).toContain("cannot exceed 15 digits");
+    });
+  });
+
+  describe("validateAddress", () => {
+    it("should accept valid addresses", () => {
+      expect(validateAddress("14 Example Way, Girrawheen WA 6064").isValid).toBe(true);
+      expect(validateAddress("Unit 4, 10 George St, Sydney NSW 2000").isValid).toBe(true);
+      expect(validateAddress("123 Main Road").isValid).toBe(true);
+    });
+
+    it("should reject empty address", () => {
+      expect(validateAddress("").isValid).toBe(false);
+      expect(validateAddress("   ").isValid).toBe(false);
+    });
+
+    it("should reject addresses shorter than 5 characters", () => {
+      const res = validateAddress("12 A");
+      expect(res.isValid).toBe(false);
+      expect(res.error).toContain("at least 5 characters");
+    });
+
+    it("should reject script injection or malicious tokens in address", () => {
+      expect(validateAddress("<script>alert(1)</script>").isValid).toBe(false);
+      expect(validateAddress("123 Main St; DROP TABLE Client;").isValid).toBe(false);
+    });
+  });
+
   describe("validatePassword", () => {
     it("should accept strong passwords", () => {
       expect(validatePassword("SecureP@ssw0rd").isValid).toBe(true);
@@ -198,6 +263,66 @@ describe("Validation & Security Library", () => {
       expect(result.errors.email).toBeDefined();
       expect(result.errors.password).toBeDefined();
       expect(result.errors.confirmPassword).toBeDefined();
+    });
+  });
+
+  describe("validateClientData", () => {
+    it("should succeed with complete valid client data", () => {
+      const result = validateClientData({
+        name: "Sarah Jenkins",
+        phone: "+61 400 123 456",
+        email: "sarah@example.com",
+        address: "14 Example Way, Girrawheen WA 6064",
+        reminderDaysBefore: 1,
+        enableInvoice: true,
+        autoSendInvoice: true,
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual({});
+    });
+
+    it("should succeed with valid client data without email if autoSendInvoice is false", () => {
+      const result = validateClientData({
+        name: "Sarah Jenkins",
+        phone: "+61 400 123 456",
+        email: "",
+        address: "14 Example Way, Girrawheen WA 6064",
+        autoSendInvoice: false,
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toEqual({});
+    });
+
+    it("should require email if autoSendInvoice is enabled", () => {
+      const result = validateClientData({
+        name: "Sarah Jenkins",
+        phone: "+61 400 123 456",
+        email: "",
+        address: "14 Example Way, Girrawheen WA 6064",
+        autoSendInvoice: true,
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.email).toContain("Email is required when automatic invoice delivery is enabled");
+    });
+
+    it("should catch malformed phone numbers, names, and addresses", () => {
+      const result = validateClientData({
+        name: "A",
+        phone: "invalid",
+        email: "bad-email",
+        address: "12",
+        reminderDaysBefore: 99,
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.name).toBeDefined();
+      expect(result.errors.phone).toBeDefined();
+      expect(result.errors.email).toBeDefined();
+      expect(result.errors.address).toBeDefined();
+      expect(result.errors.reminderDaysBefore).toBeDefined();
     });
   });
 });

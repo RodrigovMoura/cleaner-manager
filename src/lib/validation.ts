@@ -15,6 +15,9 @@ const EMAIL_REGEX =
 // Valid name characters: unicode letters, spaces, hyphens, periods, and apostrophes
 const VALID_NAME_REGEX = /^[\p{L}\p{M}'\s\-.]+$/u;
 
+// Valid phone characters: digits, spaces, parentheses, hyphens, periods, and plus sign prefix
+const VALID_PHONE_REGEX = /^\+?[0-9\s().-]+$/;
+
 export interface ValidationResult {
   isValid: boolean;
   error?: string;
@@ -25,6 +28,16 @@ export interface RegistrationErrors {
   email?: string;
   password?: string;
   confirmPassword?: string;
+  form?: string;
+}
+
+export interface ClientErrors {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  reminderDaysBefore?: string;
+  autoSendInvoice?: string;
   form?: string;
 }
 
@@ -40,7 +53,7 @@ export function sanitizeInput(input: unknown): string {
 }
 
 /**
- * Validates a user's display name.
+ * Validates a user's display name or client name.
  */
 export function validateName(name: unknown): ValidationResult {
   if (typeof name !== "string" || name.trim().length === 0) {
@@ -119,6 +132,73 @@ export function validateEmail(email: unknown): ValidationResult {
 
   if (!tld || tld.length < 2 || !/^[a-z]+$/.test(tld)) {
     return { isValid: false, error: "Email must have a valid top-level domain (e.g. .com, .com.br)." };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates a client contact phone number.
+ */
+export function validatePhone(phone: unknown, required: boolean = true): ValidationResult {
+  if (typeof phone !== "string" || phone.trim().length === 0) {
+    if (required) {
+      return { isValid: false, error: "Phone number is required." };
+    }
+    return { isValid: true };
+  }
+
+  const trimmed = phone.trim();
+
+  if (DANGEROUS_CONTROL_CHARS_REGEX.test(phone)) {
+    return { isValid: false, error: "Phone number contains invalid control characters." };
+  }
+
+  if (HTML_OR_SCRIPT_REGEX.test(phone) || SQL_OR_SHELL_INJECTION_TOKENS.test(phone)) {
+    return { isValid: false, error: "Phone number contains invalid characters." };
+  }
+
+  if (!VALID_PHONE_REGEX.test(trimmed)) {
+    return { isValid: false, error: "Please enter a valid phone number (digits, spaces, hyphens, or +)." };
+  }
+
+  const digitsOnly = trimmed.replace(/\D/g, "");
+
+  if (digitsOnly.length < 8) {
+    return { isValid: false, error: "Phone number must have at least 8 digits." };
+  }
+
+  if (digitsOnly.length > 15) {
+    return { isValid: false, error: "Phone number cannot exceed 15 digits." };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates a property address.
+ */
+export function validateAddress(address: unknown): ValidationResult {
+  if (typeof address !== "string" || address.trim().length === 0) {
+    return { isValid: false, error: "Property address is required." };
+  }
+
+  const trimmed = address.trim();
+
+  if (DANGEROUS_CONTROL_CHARS_REGEX.test(address)) {
+    return { isValid: false, error: "Address contains invalid control characters." };
+  }
+
+  if (HTML_OR_SCRIPT_REGEX.test(address) || SQL_OR_SHELL_INJECTION_TOKENS.test(address)) {
+    return { isValid: false, error: "Address cannot contain scripts or command injections." };
+  }
+
+  if (trimmed.length < 5) {
+    return { isValid: false, error: "Property address must be at least 5 characters long." };
+  }
+
+  if (trimmed.length > 200) {
+    return { isValid: false, error: "Property address must not exceed 200 characters." };
   }
 
   return { isValid: true };
@@ -225,6 +305,67 @@ export function validateRegistrationData(data: {
       errors.confirmPassword = "Please confirm your password.";
     } else if (data.password !== data.confirmPassword) {
       errors.confirmPassword = "Passwords do not match.";
+    }
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+}
+
+/**
+ * Comprehensive client form validation (creation and edition).
+ */
+export function validateClientData(data: {
+  name?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  address?: unknown;
+  reminderDaysBefore?: unknown;
+  enableInvoice?: unknown;
+  autoSendInvoice?: unknown;
+  enableAppointmentReminder?: unknown;
+  enablePaymentReminder?: unknown;
+}): { isValid: boolean; errors: ClientErrors } {
+  const errors: ClientErrors = {};
+
+  // Name validation
+  const nameVal = validateName(data.name);
+  if (!nameVal.isValid) {
+    errors.name = nameVal.error;
+  }
+
+  // Phone validation
+  const phoneVal = validatePhone(data.phone, true);
+  if (!phoneVal.isValid) {
+    errors.phone = phoneVal.error;
+  }
+
+  // Email validation (optional unless autoSendInvoice is true)
+  const isAutoSend = data.autoSendInvoice === true || data.autoSendInvoice === "on";
+  const hasEmail = typeof data.email === "string" && data.email.trim().length > 0;
+
+  if (hasEmail) {
+    const emailVal = validateEmail(data.email);
+    if (!emailVal.isValid) {
+      errors.email = emailVal.error;
+    }
+  } else if (isAutoSend) {
+    errors.email = "Email is required when automatic invoice delivery is enabled.";
+  }
+
+  // Address validation
+  const addressVal = validateAddress(data.address);
+  if (!addressVal.isValid) {
+    errors.address = addressVal.error;
+  }
+
+  // Reminder days validation
+  if (data.reminderDaysBefore !== undefined && data.reminderDaysBefore !== null) {
+    const days = parseInt(String(data.reminderDaysBefore), 10);
+    if (isNaN(days) || days < 1 || days > 7) {
+      errors.reminderDaysBefore = "Reminder days must be between 1 and 7.";
     }
   }
 
