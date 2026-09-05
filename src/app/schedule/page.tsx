@@ -56,7 +56,7 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
       {/* Content Area */}
       {appointments.length === 0 ? (
         <div className='bg-white border border-dashed border-gray-300 rounded-2xl p-8 sm:p-12 text-center'>
-          <span className='text-3xl block mb-2'>{isHistory ? "📁" : "📅"}</span>
+          <span className='text-3xl block mb-2'>{isHistory ? "📁" : "📋"}</span>
           <p className='text-gray-800 font-semibold text-sm sm:text-base mb-1'>
             {isHistory ? "No past appointments found" : "No upcoming cleanings scheduled"}
           </p>

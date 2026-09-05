@@ -92,7 +92,11 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        client: true,
+        client: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -111,6 +115,13 @@ export async function GET(request: NextRequest) {
           year: "numeric",
         });
 
+        const paymentDetails = {
+          accountName: inv.paymentAccountName || inv.client.user.bankAccountName,
+          bsb: inv.paymentBsb || inv.client.user.bankBsb,
+          accountNumber: inv.paymentAccountNo || inv.client.user.bankAccountNo,
+          payId: inv.paymentPayId || inv.client.user.payId,
+        };
+
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
           to: inv.client.email,
@@ -120,6 +131,7 @@ export async function GET(request: NextRequest) {
             invoiceNumber: inv.invoiceNumber,
             amount: Number(inv.amount),
             dueDateStr: dueDateFormatted,
+            bankDetails: paymentDetails,
           }),
         });
 

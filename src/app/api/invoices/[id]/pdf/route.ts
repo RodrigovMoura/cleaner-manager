@@ -22,7 +22,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         },
       },
       include: {
-        client: true,
+        client: {
+          include: {
+            user: true,
+          },
+        },
         appointment: true,
       },
     });
@@ -31,10 +35,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       return new NextResponse("Invoice not found", { status: 404 });
     }
 
-    // Convert decimal to primitive number for PDF rendering
+    // Convert decimal to primitive number for PDF rendering, with fallback to user bank details
     const formattedInvoice = {
       ...invoice,
       amount: Number(invoice.amount),
+      paymentAccountName: invoice.paymentAccountName || invoice.client.user.bankAccountName,
+      paymentBsb: invoice.paymentBsb || invoice.client.user.bankBsb,
+      paymentAccountNo: invoice.paymentAccountNo || invoice.client.user.bankAccountNo,
+      paymentPayId: invoice.paymentPayId || invoice.client.user.payId,
     };
 
     // Cast element as any to satisfy @react-pdf/renderer's strict DocumentProps requirement

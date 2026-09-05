@@ -14,6 +14,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // AUSTRALIAN BANK DETAILS
+  bankAccountName String?
+  bankBsb         String?
+  bankAccountNo   String?
+  payId           String?
+
   clients Client[]
 }
 
@@ -79,6 +85,12 @@ model Invoice {
   amount        Decimal
   dueDate       DateTime
   status        PaymentStatus @default(PENDING)
+
+  // SNAPSHOT DOS DADOS BANCÁRIOS CAPTURADOS NO MOMENTO DA EMISSÃO
+  paymentAccountName String?
+  paymentBsb         String?
+  paymentAccountNo   String?
+  paymentPayId       String?
 
   sentAt       DateTime?
   lastChasedAt DateTime?

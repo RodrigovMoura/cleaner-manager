@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutUser } from "@/actions/auth";
@@ -8,14 +8,17 @@ import { logoutUser } from "@/actions/auth";
 export default function Navbar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [prevPathname, setPrevPathname] = useState(pathname);
 
-  // Close drawer when pathname changes without cascading render effect
+  // Close drawer and dropdown when pathname changes
   if (prevPathname !== pathname) {
     setPrevPathname(pathname);
     setIsOpen(false);
+    setIsSettingsMenuOpen(false);
   }
 
   // Lock body scroll when mobile drawer is open
@@ -30,15 +33,27 @@ export default function Navbar() {
     };
   }, [isOpen]);
 
-  // Close on Escape key
+  // Close on Escape or click outside
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setIsOpen(false);
+        setIsSettingsMenuOpen(false);
       }
     };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsSettingsMenuOpen(false);
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   // Do not render navbar on auth pages
@@ -46,18 +61,38 @@ export default function Navbar() {
     return null;
   }
 
-  const navLinks = [
+  // Primary Operational Navigation
+  const coreNavLinks = [
     { href: "/", label: "Dashboard", icon: "🏠" },
-    { href: "/schedule", label: "Schedule", icon: "📅" },
+    { href: "/calendar", label: "Calendar", icon: "📅" },
+    { href: "/schedule", label: "Schedule", icon: "📋" },
     { href: "/clients", label: "Clients", icon: "👥" },
     { href: "/invoices", label: "Invoices", icon: "📄" },
-    { href: "/automations", label: "Automations", icon: "⚡" },
+  ];
+
+  // Secondary / Management Navigation
+  const managementLinks = [
+    {
+      href: "/automations",
+      label: "Automations",
+      icon: "⚡",
+      description: "Email rules & safeguards",
+    },
+    {
+      href: "/settings",
+      label: "Settings",
+      icon: "⚙️",
+      description: "Bank details & billing",
+    },
   ];
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
   };
+
+  const isManagementActive =
+    pathname.startsWith("/settings") || pathname.startsWith("/automations");
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -68,7 +103,7 @@ export default function Navbar() {
     <>
       {/* Top Header / Navbar */}
       <header className='sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-xs'>
-        <div className='max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4'>
+        <div className='max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4'>
           {/* Left: Mobile Hamburger & Logo */}
           <div className='flex items-center gap-3'>
             {/* Hamburger Button (Mobile Only) */}
@@ -79,28 +114,35 @@ export default function Navbar() {
               aria-label='Open navigation menu'
               aria-expanded={isOpen}>
               <svg className='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M4 6h16M4 12h16M4 18h16' />
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth='2'
+                  d='M4 6h16M4 12h16M4 18h16'
+                />
               </svg>
             </button>
 
             {/* Logo / Brand */}
             <Link
               href='/'
-              className='flex items-center gap-2.5 group focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1'>
+              className='flex items-center gap-2 group focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1'>
               <span className='text-xl group-hover:scale-110 transition-transform'>✨</span>
-              <span className='font-bold text-gray-900 tracking-tight text-base sm:text-lg'>Cleaner Manager</span>
+              <span className='font-bold text-gray-900 tracking-tight text-base sm:text-lg'>
+                Cleaner Manager
+              </span>
             </Link>
           </div>
 
-          {/* Center Links (Desktop Only) */}
-          <nav className='hidden md:flex items-center gap-1.5' aria-label='Main Navigation'>
-            {navLinks.map((link) => {
+          {/* Center Links (Desktop Only - Cleaned up to core operational tasks) */}
+          <nav className='hidden md:flex items-center gap-1' aria-label='Main Navigation'>
+            {coreNavLinks.map((link) => {
               const active = isActive(link.href);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium transition-all ${
                     active
                       ? "bg-blue-50 text-blue-700 font-semibold shadow-2xs"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100/80"
@@ -112,7 +154,7 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right: Quick actions & Logout (Desktop) + Quick link on mobile */}
+          {/* Right: Quick actions & Management dropdown (Desktop) */}
           <div className='flex items-center gap-2'>
             <Link
               href='/schedule/new'
@@ -121,30 +163,91 @@ export default function Navbar() {
               <span>Schedule</span>
             </Link>
 
-            <button
-              type='button'
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              aria-label='Log out'
-              title='Log out'
-              className='hidden md:flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors ml-1 border border-transparent hover:border-red-100 disabled:opacity-50'>
-              <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth='2'
-                  d='M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
-                />
-              </svg>
-              <span>{isLoggingOut ? "Exiting..." : "Logout"}</span>
-            </button>
+            {/* Desktop Settings & Tools Dropdown */}
+            <div className='relative hidden md:block' ref={menuRef}>
+              <button
+                type='button'
+                onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
+                title='Settings & Management'
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
+                  isManagementActive
+                    ? "bg-blue-50 text-blue-700 border-blue-200 font-semibold"
+                    : isSettingsMenuOpen
+                    ? "bg-gray-100 text-gray-900 border-gray-300"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100 border-transparent"
+                }`}>
+                <span>⚙️</span>
+                <span className='hidden lg:inline'>Manage</span>
+                <svg
+                  className={`w-3 h-3 transition-transform ${isSettingsMenuOpen ? "rotate-180" : ""}`}
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M19 9l-7 7-7-7' />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isSettingsMenuOpen && (
+                <div className='absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-2xl shadow-xl p-1.5 space-y-1 z-50 animate-in fade-in zoom-in-95 duration-100'>
+                  <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1'>
+                    Management & Tools
+                  </div>
+
+                  {managementLinks.map((item) => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsSettingsMenuOpen(false)}
+                        className={`flex items-start gap-2.5 px-3 py-2 rounded-xl transition-colors ${
+                          active
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}>
+                        <span className='text-base mt-0.5'>{item.icon}</span>
+                        <div>
+                          <div className='text-xs font-semibold leading-none'>{item.label}</div>
+                          <div className='text-[10px] text-gray-400 mt-1 leading-tight'>
+                            {item.description}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+                  <div className='border-t border-gray-100 pt-1'>
+                    <button
+                      type='button'
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className='w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50 text-left'>
+                      <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1'
+                        />
+                      </svg>
+                      <span>{isLoggingOut ? "Logging out..." : "Log Out"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Drawer Lateral para Mobile (Slide-over) */}
+      {/* Mobile Slide-over Drawer */}
       {isOpen && (
-        <div className='fixed inset-0 z-50 md:hidden' role='dialog' aria-modal='true' aria-label='Mobile navigation'>
+        <div
+          className='fixed inset-0 z-50 md:hidden'
+          role='dialog'
+          aria-modal='true'
+          aria-label='Mobile navigation'>
           {/* Backdrop overlay */}
           <div
             className='fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity'
@@ -172,43 +275,76 @@ export default function Navbar() {
             </div>
 
             {/* Links Principais */}
-            <div className='p-4 space-y-1 flex-1 overflow-y-auto'>
-              <div className='text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2'>
-                Navigation
+            <div className='p-4 space-y-4 flex-1 overflow-y-auto'>
+              {/* Seção Operacional */}
+              <div>
+                <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
+                  Operations
+                </div>
+                <div className='space-y-1'>
+                  {coreNavLinks.map((link) => {
+                    const active = isActive(link.href);
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setIsOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+                          active
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}>
+                        <span className='text-base'>{link.icon}</span>
+                        <span>{link.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-              {navLinks.map((link) => {
-                const active = isActive(link.href);
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                      active ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-700 hover:bg-gray-50"
-                    }`}>
-                    <span className='text-base'>{link.icon}</span>
-                    <span>{link.label}</span>
-                  </Link>
-                );
-              })}
+
+              {/* Seção Gestão & Ferramentas */}
+              <div className='pt-2 border-t border-gray-100'>
+                <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
+                  Management & Rules
+                </div>
+                <div className='space-y-1'>
+                  {managementLinks.map((link) => {
+                    const active = isActive(link.href);
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setIsOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+                          active
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}>
+                        <span className='text-base'>{link.icon}</span>
+                        <span>{link.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Atalhos Rápidos */}
-              <div className='pt-6'>
-                <div className='text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2'>
+              <div className='pt-2 border-t border-gray-100'>
+                <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
                   Quick Actions
                 </div>
                 <div className='space-y-1'>
                   <Link
                     href='/schedule/new'
                     onClick={() => setIsOpen(false)}
-                    className='flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50/50 rounded-xl transition-colors'>
+                    className='flex items-center gap-3 px-3 py-2 text-xs sm:text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50/50 rounded-xl transition-colors'>
                     <span className='text-blue-600 font-bold'>＋</span>
                     <span>New Appointment</span>
                   </Link>
                   <Link
                     href='/clients/new'
                     onClick={() => setIsOpen(false)}
-                    className='flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50/50 rounded-xl transition-colors'>
+                    className='flex items-center gap-3 px-3 py-2 text-xs sm:text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50/50 rounded-xl transition-colors'>
                     <span className='text-blue-600 font-bold'>＋</span>
                     <span>New Client</span>
                   </Link>

@@ -411,3 +411,136 @@ export function validateAppointmentData(data: {
     errors,
   };
 }
+
+export interface BankDetailsErrors {
+  bankAccountName?: string;
+  bankBsb?: string;
+  bankAccountNo?: string;
+  payId?: string;
+  form?: string;
+}
+
+/**
+ * Formats or cleans an Australian BSB number into standard "XXX-XXX" format.
+ */
+export function formatBsb(bsb: string): string {
+  const digits = bsb.replace(/\D/g, "");
+  if (digits.length === 6) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return bsb.trim();
+}
+
+/**
+ * Validates an Australian BSB (Bank State Branch) code.
+ * Must be 6 digits, optionally with a hyphen in the middle (e.g. 123-456 or 123456).
+ */
+export function validateBsb(bsb: unknown, required = false): ValidationResult {
+  if (typeof bsb !== "string" || bsb.trim().length === 0) {
+    if (required) {
+      return { isValid: false, error: "BSB is required." };
+    }
+    return { isValid: true };
+  }
+
+  const clean = bsb.trim();
+  if (DANGEROUS_CONTROL_CHARS_REGEX.test(clean) || HTML_OR_SCRIPT_REGEX.test(clean)) {
+    return { isValid: false, error: "Invalid characters in BSB." };
+  }
+
+  const digits = clean.replace(/\D/g, "");
+  if (digits.length !== 6) {
+    return { isValid: false, error: "BSB must consist of 6 digits (e.g. 062-000)." };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates an Australian Bank Account Number (typically 5-10 digits).
+ */
+export function validateAccountNumber(accountNo: unknown, required = false): ValidationResult {
+  if (typeof accountNo !== "string" || accountNo.trim().length === 0) {
+    if (required) {
+      return { isValid: false, error: "Account number is required." };
+    }
+    return { isValid: true };
+  }
+
+  const clean = accountNo.trim();
+  if (DANGEROUS_CONTROL_CHARS_REGEX.test(clean) || HTML_OR_SCRIPT_REGEX.test(clean)) {
+    return { isValid: false, error: "Invalid characters in account number." };
+  }
+
+  const digits = clean.replace(/[\s-]/g, "");
+  if (!/^\d{5,10}$/.test(digits)) {
+    return { isValid: false, error: "Account number must be between 5 and 10 digits." };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates PayID (optional: email, mobile number, or ABN/free-identifier up to 100 chars).
+ */
+export function validatePayId(payId: unknown): ValidationResult {
+  if (typeof payId !== "string" || payId.trim().length === 0) {
+    return { isValid: true };
+  }
+
+  const clean = payId.trim();
+  if (clean.length > 100) {
+    return { isValid: false, error: "PayID must be less than 100 characters." };
+  }
+
+  if (
+    DANGEROUS_CONTROL_CHARS_REGEX.test(clean) ||
+    HTML_OR_SCRIPT_REGEX.test(clean) ||
+    SQL_OR_SHELL_INJECTION_TOKENS.test(clean)
+  ) {
+    return { isValid: false, error: "PayID contains invalid characters." };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Validates all bank details submitted by the user.
+ */
+export function validateBankDetails(data: {
+  bankAccountName?: unknown;
+  bankBsb?: unknown;
+  bankAccountNo?: unknown;
+  payId?: unknown;
+}): { isValid: boolean; errors: BankDetailsErrors } {
+  const errors: BankDetailsErrors = {};
+
+  if (typeof data.bankAccountName === "string" && data.bankAccountName.trim().length > 0) {
+    const cleanName = data.bankAccountName.trim();
+    if (cleanName.length > 100) {
+      errors.bankAccountName = "Account name must be less than 100 characters.";
+    } else if (DANGEROUS_CONTROL_CHARS_REGEX.test(cleanName) || HTML_OR_SCRIPT_REGEX.test(cleanName)) {
+      errors.bankAccountName = "Account name contains invalid characters.";
+    }
+  }
+
+  const bsbVal = validateBsb(data.bankBsb);
+  if (!bsbVal.isValid) {
+    errors.bankBsb = bsbVal.error;
+  }
+
+  const accVal = validateAccountNumber(data.bankAccountNo);
+  if (!accVal.isValid) {
+    errors.bankAccountNo = accVal.error;
+  }
+
+  const payIdVal = validatePayId(data.payId);
+  if (!payIdVal.isValid) {
+    errors.payId = payIdVal.error;
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+}

@@ -103,6 +103,10 @@ describe("registerUser server action", () => {
       password: "hashedpassword",
       createdAt: new Date(),
       updatedAt: new Date(),
+      bankAccountName: null,
+      bankBsb: null,
+      bankAccountNo: null,
+      payId: null,
     });
 
     const formData = new FormData();
@@ -129,6 +133,10 @@ describe("registerUser server action", () => {
       password: "hashed_password",
       createdAt: new Date(),
       updatedAt: new Date(),
+      bankAccountName: null,
+      bankBsb: null,
+      bankAccountNo: null,
+      payId: null,
     });
 
     const formData = new FormData();

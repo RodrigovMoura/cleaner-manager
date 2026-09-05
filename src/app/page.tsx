@@ -149,11 +149,20 @@ export default async function HomePage() {
       </div>
 
       {/* Quick Navigation Hub */}
-      <div className='grid grid-cols-3 gap-2.5 sm:gap-4'>
+      <div className='grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4'>
+        <Link
+          href='/calendar'
+          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
+          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📅</span>
+          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
+            Calendar
+          </span>
+        </Link>
+
         <Link
           href='/schedule'
           className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
-          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📅</span>
+          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📋</span>
           <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
             Schedule
           </span>

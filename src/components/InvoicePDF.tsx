@@ -142,6 +142,43 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     lineHeight: 1.4,
   },
+  paymentBox: {
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 6,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  paymentTitle: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+  paymentRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+  },
+  paymentLabel: {
+    width: "35%",
+    fontSize: 9,
+    color: "#6b7280",
+    fontWeight: "bold",
+  },
+  paymentValue: {
+    width: "65%",
+    fontSize: 9,
+    color: "#111827",
+  },
+  paymentRefValue: {
+    width: "65%",
+    fontSize: 9,
+    color: "#2563eb",
+    fontWeight: "bold",
+  },
 });
 
 interface InvoicePDFProps {
@@ -160,6 +197,10 @@ interface InvoicePDFProps {
     appointment?: {
       date: Date | string;
     } | null;
+    paymentAccountName?: string | null;
+    paymentBsb?: string | null;
+    paymentAccountNo?: string | null;
+    paymentPayId?: string | null;
   };
 }
 
@@ -248,11 +289,42 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
           </View>
         </View>
 
-        {/* Payment Details Footer */}
+        {/* Payment Details */}
+        {invoice.paymentBsb && invoice.paymentAccountNo ? (
+          <View style={styles.paymentBox}>
+            <Text style={styles.paymentTitle}>How to Pay (Direct Bank Transfer)</Text>
+            {invoice.paymentAccountName && (
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>Account Name:</Text>
+                <Text style={styles.paymentValue}>{invoice.paymentAccountName}</Text>
+              </View>
+            )}
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>BSB:</Text>
+              <Text style={styles.paymentValue}>{invoice.paymentBsb}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Account Number:</Text>
+              <Text style={styles.paymentValue}>{invoice.paymentAccountNo}</Text>
+            </View>
+            {invoice.paymentPayId && (
+              <View style={styles.paymentRow}>
+                <Text style={styles.paymentLabel}>PayID:</Text>
+                <Text style={styles.paymentValue}>{invoice.paymentPayId}</Text>
+              </View>
+            )}
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Payment Reference:</Text>
+              <Text style={styles.paymentRefValue}>{invoice.invoiceNumber}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerTitle}>Payment Instructions</Text>
+          <Text style={styles.footerTitle}>Payment Terms</Text>
           <Text style={styles.footerText}>
-            Please transfer the amount due by the date indicated. Thank you for your business!
+            Please transfer the total amount due by the date indicated. Thank you for your valued business!
           </Text>
         </View>
       </Page>

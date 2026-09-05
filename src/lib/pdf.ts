@@ -15,6 +15,13 @@ interface GenerateInvoicePdfBufferProps {
       address: string;
     };
     status: string;
+    appointment?: {
+      date: Date | string;
+    } | null;
+    paymentAccountName?: string | null;
+    paymentBsb?: string | null;
+    paymentAccountNo?: string | null;
+    paymentPayId?: string | null;
   };
 }
 

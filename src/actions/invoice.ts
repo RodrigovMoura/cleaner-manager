@@ -59,6 +59,16 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     const dueDate = new Date(appointment.date);
     dueDate.setDate(dueDate.getDate() + 7);
 
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        bankAccountName: true,
+        bankBsb: true,
+        bankAccountNo: true,
+        payId: true,
+      },
+    });
+
     const invoice = await prisma.invoice.create({
       data: {
         appointmentId: appointment.id,
@@ -67,6 +77,10 @@ export async function createInvoiceForAppointment(appointmentId: string) {
         amount: appointment.price,
         dueDate,
         status: "PENDING",
+        paymentAccountName: user?.bankAccountName,
+        paymentBsb: user?.bankBsb,
+        paymentAccountNo: user?.bankAccountNo,
+        paymentPayId: user?.payId,
       },
     });
 
@@ -171,7 +185,11 @@ export async function sendInvoiceEmail(invoiceId: string) {
         client: { userId: session.userId },
       },
       include: {
-        client: true,
+        client: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -182,6 +200,14 @@ export async function sendInvoiceEmail(invoiceId: string) {
     if (!invoice.client.email) {
       return { success: false, message: "Client does not have an email address configured." };
     }
+
+    // Resolve payment details with snapshot first, then fallback to current user settings
+    const paymentDetails = {
+      accountName: invoice.paymentAccountName || invoice.client.user.bankAccountName,
+      bsb: invoice.paymentBsb || invoice.client.user.bankBsb,
+      accountNumber: invoice.paymentAccountNo || invoice.client.user.bankAccountNo,
+      payId: invoice.paymentPayId || invoice.client.user.payId,
+    };
 
     // 1. Gera o PDF em Buffer
     const pdfBuffer = await generateInvoicePdfBuffer({
@@ -197,6 +223,10 @@ export async function sendInvoiceEmail(invoiceId: string) {
           address: invoice.client.address,
         },
         status: invoice.status,
+        paymentAccountName: paymentDetails.accountName,
+        paymentBsb: paymentDetails.bsb,
+        paymentAccountNo: paymentDetails.accountNumber,
+        paymentPayId: paymentDetails.payId,
       },
     });
 
@@ -216,6 +246,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
         invoiceNumber: invoice.invoiceNumber,
         amount: Number(invoice.amount),
         dueDateStr: dueDateFormatted,
+        bankDetails: paymentDetails,
       }),
       attachments: [
         {

@@ -138,6 +138,16 @@ export async function updateAppointmentStatus(
       const dueDate = new Date(appointment.date);
       dueDate.setDate(dueDate.getDate() + 7);
 
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          bankAccountName: true,
+          bankBsb: true,
+          bankAccountNo: true,
+          payId: true,
+        },
+      });
+
       const createdInvoice = await prisma.invoice.create({
         data: {
           appointmentId: appointment.id,
@@ -146,6 +156,10 @@ export async function updateAppointmentStatus(
           amount: appointment.price,
           dueDate,
           status: "PENDING",
+          paymentAccountName: user?.bankAccountName,
+          paymentBsb: user?.bankBsb,
+          paymentAccountNo: user?.bankAccountNo,
+          paymentPayId: user?.payId,
         },
       });
 
