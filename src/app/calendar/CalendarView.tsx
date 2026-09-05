@@ -162,7 +162,20 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
   }, [view, currentDate, visibleDays]);
 
   const formatTime = (iso: string) => {
-    return new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const getClientWeekName = (fullName: string) => {
+    if (!fullName) return "";
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0];
+    const first = parts[0];
+    const lastInitial = parts[parts.length - 1][0].toUpperCase();
+    return `${first} ${lastInitial}.`;
   };
 
   const today = new Date();
@@ -280,9 +293,11 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
         {view === "month" && (
           <div>
             {/* Weekday column headers */}
-            <div className='grid grid-cols-7 border-b border-gray-200 bg-gray-50/80 text-center text-xs font-bold text-gray-600 py-2.5'>
+            <div className='grid grid-cols-7 border-b border-gray-200 bg-gray-50/80 text-center text-xs font-bold text-gray-600 py-2 sm:py-2.5'>
               {WEEKDAYS.map((day) => (
-                <div key={day}>{day}</div>
+                <div key={day} className='text-[11px] sm:text-xs truncate'>
+                  {day}
+                </div>
               ))}
             </div>
 
@@ -297,13 +312,13 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                 return (
                   <div
                     key={idx}
-                    className={`min-h-[105px] sm:min-h-[120px] p-1.5 sm:p-2 flex flex-col justify-between transition-colors ${
+                    className={`min-w-0 min-h-[95px] sm:min-h-[120px] p-1 sm:p-1.5 flex flex-col justify-between transition-colors overflow-hidden ${
                       isCurrentMonth ? "bg-white hover:bg-gray-50/50" : "bg-gray-50/60 text-gray-400"
                     }`}>
                     {/* Day number & count header */}
                     <div className='flex items-center justify-between'>
                       <span
-                        className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+                        className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full ${
                           isToday
                             ? "bg-blue-600 text-white shadow-xs"
                             : isCurrentMonth
@@ -314,13 +329,13 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                       </span>
 
                       {dayApts.length > 0 && (
-                        <span className='text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded'>
+                        <span className='text-[9px] sm:text-[10px] font-semibold text-blue-600 bg-blue-50 px-1 sm:px-1.5 py-0.2 rounded'>
                           {dayApts.length}
                         </span>
                       )}
                     </div>
 
-                    {/* Cleanings list */}
+                    {/* Cleanings list - Shows only scheduled time as clickable item */}
                     <div className='space-y-1 my-1 flex-1 overflow-hidden'>
                       {dayApts.slice(0, 3).map((apt) => {
                         const isCompleted = apt.status === "COMPLETED";
@@ -331,16 +346,15 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                             key={apt.id}
                             type='button'
                             onClick={() => setSelectedAppointment(apt)}
-                            title={`${formatTime(apt.date)} - ${apt.client.name} ($${apt.price})`}
-                            className={`w-full text-left px-1.5 py-0.5 rounded text-[11px] font-medium truncate flex items-center gap-1 transition-transform hover:scale-[1.02] ${
+                            title={`${formatTime(apt.date)} - ${apt.client.name} ($${apt.price.toFixed(2)}) - ${apt.status}`}
+                            className={`w-full text-center px-0.5 sm:px-1 py-0.5 rounded text-[10px] sm:text-xs font-semibold truncate block whitespace-nowrap transition-transform hover:scale-[1.02] ${
                               isCompleted
-                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                ? "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100"
                                 : isCancelled
                                   ? "bg-gray-100 text-gray-400 line-through"
-                                  : "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
                             }`}>
-                            <span className='font-bold shrink-0'>{formatTime(apt.date)}</span>
-                            <span className='truncate'>{apt.client.name}</span>
+                            {formatTime(apt.date)}
                           </button>
                         );
                       })}
@@ -352,14 +366,14 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                             setCurrentDate(day);
                             setView("day");
                           }}
-                          className='text-[10px] font-semibold text-gray-500 hover:text-blue-600 hover:underline block text-left pl-1'>
-                          +{dayApts.length - 3} more...
+                          className='text-[9px] sm:text-[10px] font-semibold text-gray-500 hover:text-blue-600 hover:underline block text-center w-full truncate'>
+                          +{dayApts.length - 3} more
                         </button>
                       )}
                     </div>
 
                     {/* Quick add prompt on hover */}
-                    <div className='pt-1 text-right'>
+                    <div className='pt-0.5 text-right'>
                       <Link
                         href={`/schedule/new?date=${dayKey}`}
                         className='text-[10px] text-gray-300 hover:text-blue-600 font-bold transition-colors'
@@ -377,9 +391,11 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
         {/* VIEW 2: TWO WEEKS (FORTNIGHTLY) VIEW */}
         {view === "2weeks" && (
           <div>
-            <div className='grid grid-cols-7 border-b border-gray-200 bg-gray-50/80 text-center text-xs font-bold text-gray-600 py-2.5'>
+            <div className='grid grid-cols-7 border-b border-gray-200 bg-gray-50/80 text-center text-xs font-bold text-gray-600 py-2 sm:py-2.5'>
               {WEEKDAYS.map((day) => (
-                <div key={day}>{day}</div>
+                <div key={day} className='text-[11px] sm:text-xs truncate'>
+                  {day}
+                </div>
               ))}
             </div>
 
@@ -392,50 +408,54 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                 return (
                   <div
                     key={idx}
-                    className='min-h-[160px] sm:min-h-[190px] p-2 flex flex-col justify-between bg-white hover:bg-gray-50/40 transition-colors'>
+                    className='min-w-0 min-h-[105px] sm:min-h-[150px] p-1 sm:p-2 flex flex-col justify-between bg-white hover:bg-gray-50/40 transition-colors overflow-hidden'>
                     {/* Header */}
                     <div className='flex items-center justify-between pb-1 border-b border-gray-100'>
                       <span
-                        className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${
+                        className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full ${
                           isToday ? "bg-blue-600 text-white shadow-xs" : "text-gray-900"
                         }`}>
                         {day.getDate()}
                       </span>
                       {dayApts.length > 0 && (
-                        <span className='text-[10px] font-bold text-gray-500'>
+                        <span className='text-[10px] font-bold text-gray-500 hidden sm:inline'>
                           ${dayApts.reduce((sum, a) => sum + a.price, 0).toFixed(0)}
+                        </span>
+                      )}
+                      {dayApts.length > 0 && (
+                        <span className='text-[9px] font-bold text-blue-600 sm:hidden'>
+                          {dayApts.length}
                         </span>
                       )}
                     </div>
 
-                    {/* List */}
-                    <div className='space-y-1.5 my-2 flex-1 overflow-y-auto max-h-[140px]'>
+                    {/* List - Shows only scheduled time as clickable item */}
+                    <div className='space-y-1 my-1 sm:my-1.5 flex-1 overflow-y-auto max-h-[120px]'>
                       {dayApts.map((apt) => (
                         <button
                           key={apt.id}
                           type='button'
                           onClick={() => setSelectedAppointment(apt)}
-                          className={`w-full text-left p-1.5 rounded-lg border text-xs transition-all hover:shadow-2xs ${
+                          title={`${formatTime(apt.date)} - ${apt.client.name} ($${apt.price.toFixed(2)}) - ${apt.status}`}
+                          className={`w-full text-center px-0.5 sm:px-1 py-1 rounded-md border text-[10px] sm:text-xs font-bold transition-all hover:shadow-2xs truncate block whitespace-nowrap ${
                             apt.status === "COMPLETED"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                               : apt.status === "CANCELLED"
                                 ? "bg-gray-50 text-gray-400 line-through border-gray-200"
-                                : "bg-blue-50 text-blue-900 border-blue-200"
+                                : "bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100"
                           }`}>
-                          <div className='font-bold flex items-center justify-between'>
-                            <span>{formatTime(apt.date)}</span>
-                            <span>${apt.price.toFixed(0)}</span>
-                          </div>
-                          <div className='font-semibold truncate text-[11px]'>{apt.client.name}</div>
+                          {formatTime(apt.date)}
                         </button>
                       ))}
                     </div>
 
-                    <div className='text-right'>
+                    <div className='text-right pt-0.5'>
                       <Link
                         href={`/schedule/new?date=${dayKey}`}
-                        className='text-[11px] font-semibold text-gray-400 hover:text-blue-600 transition-colors'>
-                        ＋ Schedule
+                        className='text-[10px] sm:text-[11px] font-semibold text-gray-400 hover:text-blue-600 transition-colors'
+                        title={`Schedule cleaning on ${day.toLocaleDateString("en-AU")}`}>
+                        <span className='hidden sm:inline'>＋ Schedule</span>
+                        <span className='sm:hidden font-bold'>＋</span>
                       </Link>
                     </div>
                   </div>
@@ -447,8 +467,8 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
 
         {/* VIEW 3: WEEK VIEW (7 DAYS) */}
         {view === "week" && (
-          <div className='overflow-x-auto'>
-            <div className='min-w-[700px] grid grid-cols-7 divide-x divide-gray-200'>
+          <div className='overflow-x-auto touch-pan-x'>
+            <div className='min-w-[650px] sm:min-w-[700px] grid grid-cols-7 divide-x divide-gray-200'>
               {visibleDays.map((day, idx) => {
                 const dayKey = getDayKey(day);
                 const dayApts = appointmentsByDay.get(dayKey) || [];
@@ -458,61 +478,63 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                   .reduce((acc, a) => acc + a.price, 0);
 
                 return (
-                  <div key={idx} className='flex flex-col min-h-[380px] bg-white'>
+                  <div key={idx} className='flex flex-col min-h-[350px] bg-white'>
                     {/* Day Column Header */}
                     <div
-                      className={`p-3 text-center border-b border-gray-200 ${
+                      className={`p-2 sm:p-3 text-center border-b border-gray-200 ${
                         isToday ? "bg-blue-50/70" : "bg-gray-50/70"
                       }`}>
                       <div className='text-xs font-semibold text-gray-500 uppercase'>{WEEKDAYS[idx]}</div>
                       <div
-                        className={`text-lg font-bold inline-block px-2 py-0.5 rounded-full ${
+                        className={`text-base sm:text-lg font-bold inline-block px-2 py-0.5 rounded-full ${
                           isToday ? "bg-blue-600 text-white mt-1" : "text-gray-900"
                         }`}>
                         {day.getDate()}
                       </div>
-                      <div className='text-[10px] text-gray-500 font-semibold mt-1'>
+                      <div className='text-[10px] text-gray-500 font-semibold mt-1 truncate'>
                         {dayApts.length} jobs • ${totalDayRev.toFixed(0)}
                       </div>
                     </div>
 
-                    {/* Column Body: Appointments */}
-                    <div className='p-2 space-y-2 flex-1 overflow-y-auto'>
+                    {/* Column Body: Appointments - Shows only first name, time, and status */}
+                    <div className='p-1.5 sm:p-2 space-y-1.5 flex-1 overflow-y-auto'>
                       {dayApts.map((apt) => (
-                        <div
+                        <button
                           key={apt.id}
+                          type='button'
                           onClick={() => setSelectedAppointment(apt)}
-                          className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all hover:shadow-xs ${
+                          title={`${formatTime(apt.date)} - ${apt.client.name} ($${apt.price.toFixed(2)}) - ${apt.status}`}
+                          className={`w-full p-2 rounded-xl border text-xs cursor-pointer transition-all hover:shadow-xs block ${
                             apt.status === "COMPLETED"
-                              ? "bg-emerald-50/70 text-emerald-950 border-emerald-200"
+                              ? "bg-emerald-50/70 border-emerald-200 hover:border-emerald-300"
                               : apt.status === "CANCELLED"
-                                ? "bg-gray-50 text-gray-400 border-gray-200"
-                                : "bg-blue-50/70 text-blue-950 border-blue-200"
+                                ? "bg-gray-50 border-gray-200"
+                                : "bg-blue-50/70 border-blue-200 hover:border-blue-300"
                           }`}>
-                          <div className='flex items-center justify-between font-bold text-[11px] mb-1'>
-                            <span className='text-blue-700'>{formatTime(apt.date)}</span>
-                            <span>${apt.price.toFixed(2)}</span>
+                          {/* 1. Horário (24h) - alinhado à esquerda */}
+                          <div className='font-bold text-xs text-blue-700 tracking-tight text-left'>
+                            {formatTime(apt.date)}
                           </div>
-                          <div className='font-bold text-gray-900 truncate'>{apt.client.name}</div>
-                          {apt.client.address && (
-                            <div className='text-[10px] text-gray-500 truncate mt-0.5'>📍 {apt.client.address}</div>
-                          )}
-                          <div className='mt-2 pt-1 border-t border-black/5 flex items-center justify-between text-[10px]'>
-                            <span
-                              className={`font-semibold ${
-                                apt.status === "COMPLETED"
-                                  ? "text-emerald-700"
-                                  : apt.status === "CANCELLED"
-                                    ? "text-gray-400"
-                                    : "text-blue-600"
-                              }`}>
-                              {apt.status}
-                            </span>
-                            {apt.invoice && (
-                              <span className='text-gray-400 font-mono'>{apt.invoice.invoiceNumber}</span>
-                            )}
+                          {/* 2. Nome com inicial do sobrenome - alinhado à esquerda */}
+                          <div className='font-semibold text-gray-900 truncate text-xs text-left mt-0.5'>
+                            {getClientWeekName(apt.client.name)}
                           </div>
-                        </div>
+                          {/* 3. Linha fina separadora após o nome e Status centralizado */}
+                          <div
+                            className={`border-t border-black/10 mt-1.5 pt-1 text-center text-[11px] truncate ${
+                              apt.status === "COMPLETED"
+                                ? "text-emerald-700 font-medium"
+                                : apt.status === "CANCELLED"
+                                  ? "text-rose-600 font-medium line-through"
+                                  : "text-blue-600 font-medium"
+                            }`}>
+                            {apt.status === "SCHEDULED"
+                              ? "Scheduled"
+                              : apt.status === "COMPLETED"
+                                ? "Completed"
+                                : "Cancelled"}
+                          </div>
+                        </button>
                       ))}
 
                       {dayApts.length === 0 && (
