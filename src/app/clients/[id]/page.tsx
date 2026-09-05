@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClientById } from "@/actions/client";
+import AppointmentActions from "@/app/schedule/AppointmentActions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -168,7 +169,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                   return (
                     <div
                       key={apt.id}
-                      className='border border-gray-100 bg-gray-50/70 p-3.5 rounded-xl flex items-center justify-between gap-4 text-sm'>
+                      className='border border-gray-100 bg-gray-50/70 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm'>
                       <div className='space-y-0.5 min-w-0'>
                         <div className='flex items-center gap-2 flex-wrap'>
                           <span className='font-semibold text-gray-900'>{formattedDate}</span>
@@ -176,7 +177,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                         </div>
                       </div>
 
-                      <div className='flex items-center gap-3 shrink-0'>
+                      <div className='flex items-center justify-between sm:justify-end gap-3 flex-wrap sm:flex-nowrap shrink-0'>
                         <span className='text-xs font-bold text-gray-900'>${Number(apt.price).toFixed(2)}</span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -188,6 +189,13 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                           }`}>
                           {apt.status}
                         </span>
+                        <AppointmentActions
+                          appointmentId={apt.id}
+                          currentStatus={apt.status}
+                          clientName={client.name}
+                          initialDate={apt.date}
+                          initialPrice={Number(apt.price)}
+                        />
                       </div>
                     </div>
                   );

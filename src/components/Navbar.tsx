@@ -51,6 +51,7 @@ export default function Navbar() {
     { href: "/schedule", label: "Schedule", icon: "📅" },
     { href: "/clients", label: "Clients", icon: "👥" },
     { href: "/invoices", label: "Invoices", icon: "📄" },
+    { href: "/automations", label: "Automations", icon: "⚡" },
   ];
 
   const isActive = (href: string) => {

@@ -3,28 +3,36 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createAppointment } from "@/actions/appointment";
+import { updateAppointment } from "@/actions/appointment";
+import { formatToDateTimeLocal } from "@/lib/date";
 
-interface ClientOption {
+interface AppointmentData {
   id: string;
-  name: string;
+  clientId: string;
+  clientName: string;
+  clientAddress?: string | null;
+  date: string;
+  price: number;
+  status: string;
 }
 
-interface NewAppointmentFormProps {
-  clients: ClientOption[];
-  defaultClientId?: string;
+interface EditAppointmentFormProps {
+  appointment: AppointmentData;
 }
 
-export default function NewAppointmentForm({ clients, defaultClientId }: NewAppointmentFormProps) {
+export default function EditAppointmentForm({ appointment }: EditAppointmentFormProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
-  const [recurrence, setRecurrence] = useState<"none" | "biweekly">("none");
-  const [occurrences, setOccurrences] = useState("3");
+  const [dateValue, setDateValue] = useState(() =>
+    appointment.date ? formatToDateTimeLocal(appointment.date) : "",
+  );
+  const [priceValue, setPriceValue] = useState(appointment.price.toFixed(2));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus("loading");
+
     const formData = new FormData(event.currentTarget);
     const dateVal = formData.get("date") as string;
     if (dateVal) {
@@ -33,7 +41,8 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
         formData.set("date", localDate.toISOString());
       }
     }
-    const result = await createAppointment(formData);
+
+    const result = await updateAppointment(appointment.id, formData);
 
     if (result.success) {
       setStatus("success");
@@ -52,16 +61,13 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
     }
   };
 
-  const now = new Date();
-  const minDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-
   return (
     <div className='relative space-y-6'>
       {/* Header */}
       <div className='flex items-center justify-between'>
         <div>
-          <h1 className='text-2xl font-bold tracking-tight text-gray-900'>Schedule Cleaning</h1>
-          <p className='text-sm text-gray-500 mt-1'>Book a single cleaning or set up a recurring schedule.</p>
+          <h1 className='text-2xl font-bold tracking-tight text-gray-900'>Edit Scheduled Cleaning</h1>
+          <p className='text-sm text-gray-500 mt-1'>Update the date, time, or rate for this cleaning.</p>
         </div>
         <Link
           href='/schedule'
@@ -72,53 +78,39 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
 
       {/* Main Form Card */}
       <div className='bg-white border border-gray-200 shadow-sm rounded-xl p-5 sm:p-7 space-y-6'>
+        {/* Client Info Summary Banner */}
+        <div className='p-4 bg-gray-50/80 border border-gray-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3'>
+          <div>
+            <span className='block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-0.5'>Client</span>
+            <Link
+              href={`/clients/${appointment.clientId}`}
+              className='text-base font-bold text-gray-900 hover:text-blue-600 hover:underline'>
+              {appointment.clientName}
+            </Link>
+            {appointment.clientAddress && (
+              <p className='text-xs text-gray-500 mt-0.5'>{appointment.clientAddress}</p>
+            )}
+          </div>
+          <span
+            className={`self-start sm:self-auto text-xs font-bold px-2.5 py-1 rounded-full border ${
+              appointment.status === "SCHEDULED"
+                ? "bg-blue-50 text-blue-700 border-blue-100"
+                : appointment.status === "COMPLETED"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                  : "bg-red-50 text-red-700 border-red-100"
+            }`}>
+            {appointment.status}
+          </span>
+        </div>
+
         <form
           onSubmit={handleSubmit}
           onKeyDown={(e) => {
-            // Prevent accidental form submission when pressing Enter in inputs
             if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
               e.preventDefault();
             }
           }}
           className='space-y-6'>
-          {/* Client Selection */}
-          <div className='space-y-1.5'>
-            <label htmlFor='clientId' className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
-              Client *
-            </label>
-            <div className='relative'>
-              <select
-                id='clientId'
-                name='clientId'
-                required
-                defaultValue={defaultClientId || ""}
-                className='w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all'>
-                <option value='' disabled>
-                  Select a client...
-                </option>
-                {clients.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <div className='pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-gray-400'>
-                <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M19 9l-7 7-7-7' />
-                </svg>
-              </div>
-            </div>
-            {clients.length === 0 && (
-              <p className='text-xs text-amber-600 mt-1'>
-                No clients found.{" "}
-                <Link href='/clients/new' className='underline font-semibold'>
-                  Create a client
-                </Link>{" "}
-                first.
-              </p>
-            )}
-          </div>
-
           {/* Date & Time + Price Grid */}
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             {/* Date & Time */}
@@ -131,7 +123,8 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
                 type='datetime-local'
                 name='date'
                 required
-                min={minDateTime}
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
                 className='w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all'
               />
             </div>
@@ -152,93 +145,14 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
                   step='0.01'
                   min='0'
                   required
+                  value={priceValue}
+                  onChange={(e) => setPriceValue(e.target.value)}
                   placeholder='120.00'
                   className='w-full pl-8 pr-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all'
                 />
               </div>
             </div>
           </div>
-
-          {/* Recurrence Frequency */}
-          <div className='space-y-2 pt-2 border-t border-gray-100'>
-            <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>Frequency</label>
-            <div className='grid grid-cols-2 gap-2 bg-gray-100/80 p-1 rounded-xl'>
-              <label
-                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all ${
-                  recurrence === "none"
-                    ? "bg-white text-gray-900 shadow-xs font-semibold"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}>
-                <input
-                  type='radio'
-                  name='recurrence'
-                  value='none'
-                  checked={recurrence === "none"}
-                  onChange={() => setRecurrence("none")}
-                  className='sr-only'
-                />
-                <span>One-time</span>
-              </label>
-
-              <label
-                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all ${
-                  recurrence === "biweekly"
-                    ? "bg-white text-blue-700 shadow-xs font-semibold"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}>
-                <input
-                  type='radio'
-                  name='recurrence'
-                  value='biweekly'
-                  checked={recurrence === "biweekly"}
-                  onChange={() => setRecurrence("biweekly")}
-                  className='sr-only'
-                />
-                <span>Bi-weekly (Every 2 weeks)</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Bi-weekly Occurrences Picker */}
-          {recurrence === "biweekly" && (
-            <div className='p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-3 animate-in fade-in duration-200'>
-              <span className='block text-xs font-semibold text-blue-900 uppercase tracking-wider'>
-                How many recurring visits to create?
-              </span>
-              <div className='grid grid-cols-3 gap-2.5'>
-                {[
-                  { value: "3", label: "3 visits", sub: "~1.5 months" },
-                  { value: "6", label: "6 visits", sub: "~3 months" },
-                  { value: "12", label: "12 visits", sub: "~6 months" },
-                ].map((opt) => {
-                  const isSelected = occurrences === opt.value;
-                  return (
-                    <label
-                      key={opt.value}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center cursor-pointer transition-all ${
-                        isSelected
-                          ? "bg-white border-blue-500 shadow-xs text-blue-900 ring-2 ring-blue-500/20"
-                          : "bg-white/80 border-gray-200 text-gray-700 hover:bg-white"
-                      }`}>
-                      <input
-                        type='radio'
-                        name='occurrences'
-                        value={opt.value}
-                        checked={isSelected}
-                        onChange={() => setOccurrences(opt.value)}
-                        className='sr-only'
-                      />
-                      <span className='text-sm font-bold'>{opt.label}</span>
-                      <span className='text-[10px] text-gray-500 mt-0.5'>{opt.sub}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <p className='text-xs text-blue-700/80'>
-                💡 Individual appointments can still be rescheduled or cancelled anytime from the Schedule page.
-              </p>
-            </div>
-          )}
 
           {/* Form Actions */}
           <div className='flex items-center justify-end gap-3 pt-4 border-t border-gray-100'>
@@ -261,10 +175,10 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
                       d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
                     />
                   </svg>
-                  <span>Scheduling...</span>
+                  <span>Updating...</span>
                 </>
               ) : (
-                "Confirm Schedule"
+                "Save Changes"
               )}
             </button>
           </div>
@@ -295,7 +209,7 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
             </div>
 
             <h3 className='text-lg font-bold text-gray-900 mb-1'>
-              {status === "success" ? "Booking Confirmed!" : "Couldn't Schedule"}
+              {status === "success" ? "Cleaning Updated!" : "Update Failed"}
             </h3>
             <p className='text-sm text-gray-500 mb-6'>{message}</p>
 

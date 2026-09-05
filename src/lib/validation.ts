@@ -374,3 +374,40 @@ export function validateClientData(data: {
     errors,
   };
 }
+
+export interface AppointmentErrors {
+  date?: string;
+  price?: string;
+  form?: string;
+}
+
+/**
+ * Validates appointment scheduling and editing inputs.
+ */
+export function validateAppointmentData(data: {
+  date?: unknown;
+  price?: unknown;
+}): { isValid: boolean; errors: AppointmentErrors } {
+  const errors: AppointmentErrors = {};
+
+  if (!data.date || typeof data.date !== "string" || data.date.trim().length === 0) {
+    errors.date = "Date and time are required.";
+  } else {
+    const parsedDate = new Date(data.date);
+    if (isNaN(parsedDate.getTime())) {
+      errors.date = "Please provide a valid date and time.";
+    }
+  }
+
+  if (data.price !== undefined && data.price !== null && data.price !== "") {
+    const parsedPrice = typeof data.price === "number" ? data.price : parseFloat(String(data.price));
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      errors.price = "Price must be a valid non-negative number.";
+    }
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+}

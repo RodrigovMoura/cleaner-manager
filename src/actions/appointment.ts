@@ -166,3 +166,119 @@ export async function updateAppointmentStatus(
     return { success: false, message: "An error occurred while updating status." };
   }
 }
+
+export async function getAppointmentById(appointmentId: string) {
+  const session = await getSession();
+  if (!session?.userId) {
+    return null;
+  }
+
+  return await prisma.appointment.findFirst({
+    where: {
+      id: appointmentId,
+      client: {
+        userId: session.userId,
+      },
+    },
+    include: {
+      client: true,
+      invoice: true,
+    },
+  });
+}
+
+export async function updateAppointment(appointmentId: string, formData: FormData) {
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return { success: false, message: "Unauthorized: Please log in to continue." };
+    }
+
+    if (!appointmentId) {
+      return { success: false, message: "Appointment ID is required." };
+    }
+
+    const dateStr = formData.get("date") as string;
+    const priceStr = formData.get("price") as string | null;
+
+    if (!dateStr || dateStr.trim() === "") {
+      return { success: false, message: "Date and time are required." };
+    }
+
+    const newDate = new Date(dateStr);
+    if (isNaN(newDate.getTime())) {
+      return { success: false, message: "Invalid date or time provided." };
+    }
+
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        client: {
+          userId: session.userId,
+        },
+      },
+      include: {
+        client: true,
+        invoice: true,
+      },
+    });
+
+    if (!appointment) {
+      return { success: false, message: "Appointment not found or unauthorized." };
+    }
+
+    let newPrice = appointment.price;
+    if (priceStr !== null && priceStr !== undefined && priceStr.trim() !== "") {
+      const parsedPrice = parseFloat(priceStr);
+      if (isNaN(parsedPrice) || parsedPrice < 0) {
+        return { success: false, message: "Price must be a valid positive number." };
+      }
+      newPrice = new Prisma.Decimal(parsedPrice);
+    }
+
+    const dateChanged = newDate.getTime() !== new Date(appointment.date).getTime();
+
+    if (
+      dateChanged &&
+      appointment.status === AppointmentStatus.SCHEDULED &&
+      newDate.getTime() < Date.now() - 5 * 60 * 1000
+    ) {
+      return { success: false, message: "Appointment date cannot be in the past." };
+    }
+
+    const reminderReset = dateChanged ? { reminderSentAt: null } : {};
+
+    await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: {
+        date: newDate,
+        price: newPrice,
+        ...reminderReset,
+      },
+    });
+
+    if (appointment.invoice && appointment.invoice.status === "PENDING") {
+      const newDueDate = new Date(newDate);
+      newDueDate.setDate(newDueDate.getDate() + 7);
+
+      await prisma.invoice.update({
+        where: { id: appointment.invoice.id },
+        data: {
+          dueDate: newDueDate,
+          amount: newPrice,
+        },
+      });
+    }
+
+    revalidatePath("/schedule");
+    revalidatePath(`/schedule/${appointmentId}/edit`);
+    revalidatePath("/invoices");
+    revalidatePath(`/clients/${appointment.clientId}`);
+    revalidatePath("/");
+
+    return { success: true, message: "Appointment updated successfully!" };
+  } catch (error) {
+    console.error("Failed to update appointment:", error);
+    return { success: false, message: "An error occurred while updating the appointment. Please try again." };
+  }
+}

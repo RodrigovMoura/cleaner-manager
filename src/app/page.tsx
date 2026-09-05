@@ -234,9 +234,17 @@ export default async function HomePage() {
                       </p>
                     </div>
 
-                    <span className='text-sm font-bold text-gray-900 shrink-0 ml-2'>
-                      ${Number(apt.price).toFixed(2)}
-                    </span>
+                    <div className='flex items-center gap-3 shrink-0 ml-2'>
+                      <span className='text-sm font-bold text-gray-900'>
+                        ${Number(apt.price).toFixed(2)}
+                      </span>
+                      <Link
+                        href={`/schedule/${apt.id}/edit`}
+                        className='px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-200 border border-blue-200/80 rounded-lg transition-colors'
+                        title='Edit cleaning date and time'>
+                        Edit
+                      </Link>
+                    </div>
                   </div>
                 );
               })}

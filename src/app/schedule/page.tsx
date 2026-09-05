@@ -130,7 +130,13 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
                     className={`text-base font-bold ${isHistory ? "text-gray-600 font-medium" : "text-gray-900"}`}>
                     ${Number(apt.price).toFixed(2)}
                   </span>
-                  <AppointmentActions appointmentId={apt.id} currentStatus={apt.status} />
+                  <AppointmentActions
+                    appointmentId={apt.id}
+                    currentStatus={apt.status}
+                    clientName={apt.client.name}
+                    initialDate={apt.date}
+                    initialPrice={Number(apt.price)}
+                  />
                 </div>
               </div>
             );
