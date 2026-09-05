@@ -1,4 +1,4 @@
-# Agent Guidelines for Cleaner Manager
+# Agent Guidelines for Cleaning Management
 
 This document provides context, architectural guidelines, code conventions, and operational instructions for AI agents working in this codebase.
 
@@ -6,7 +6,7 @@ This document provides context, architectural guidelines, code conventions, and 
 
 ## 1. Project Overview & Tech Stack
 
-**Cleaner Manager** is a full-stack SaaS CRM and schedule/billing management platform designed for independent cleaning service professionals and small cleaning businesses. It streamlines client management, recurring appointment scheduling, invoice generation, and automated reminder preferences.
+**Cleaning Management** is a full-stack SaaS CRM and schedule/billing management platform designed for independent cleaning service professionals and small cleaning businesses. It streamlines client management, recurring appointment scheduling, invoice generation, and automated reminder preferences.
 
 ### Core Stack
 - **Framework**: [Next.js 16.3 (App Router)](https://nextjs.org/) + [React 19.2](https://react.dev/)
@@ -84,7 +84,7 @@ The schema is defined in `prisma/schema.prisma`.
 
 ## 4. Multi-Tenancy & Security Guidelines
 
-> **Data Isolation Rule**: cleaner-manager is a multi-tenant platform. Every user can ONLY see and mutate their own data.
+> **Data Isolation Rule**: Cleaning Management is a multi-tenant platform. Every user can ONLY see and mutate their own data.
 
 1. **Always Verify Session**:
    - In Server Actions and Server Components, resolve the session using `getSession()` from `@/lib/auth` (or `@/actions/auth`).

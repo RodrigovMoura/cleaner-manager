@@ -4,7 +4,7 @@ import { getUserBankDetails } from "@/actions/settings";
 import SettingsForm from "./SettingsForm";
 
 export const metadata = {
-  title: "Settings | Cleaner Manager",
+  title: "Settings",
   description: "Configure Australian bank transfer details and invoice preferences.",
 };
 

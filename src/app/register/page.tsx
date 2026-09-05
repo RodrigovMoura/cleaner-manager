@@ -113,7 +113,7 @@ export default function RegisterPage() {
             ✨
           </div>
           <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-gray-900'>Register</h1>
-          <p className='text-sm text-gray-500'>Create your cleaner management account.</p>
+          <p className='text-sm text-gray-500'>Create your cleaning management account.</p>
         </div>
 
         {/* Restricted Access / Authorized Email Notice */}

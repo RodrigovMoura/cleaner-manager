@@ -18,7 +18,7 @@ describe("RegisterPage Component", () => {
 
     // Title and description
     expect(screen.getByRole("heading", { name: /register/i })).toBeInTheDocument();
-    expect(screen.getByText(/Create your cleaner management account/i)).toBeInTheDocument();
+    expect(screen.getByText(/Create your cleaning management account/i)).toBeInTheDocument();
 
     // Restricted Access Notice
     expect(

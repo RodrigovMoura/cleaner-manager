@@ -231,7 +231,7 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
         {/* Header */}
         <View style={styles.headerContainer}>
           <View>
-            <Text style={styles.companyTitle}>Cleaner Manager</Text>
+            <Text style={styles.companyTitle}>Cleaning Management</Text>
             <Text style={styles.companySubtitle}>Residential Cleaning Services</Text>
           </View>
           <View>

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import CalendarView, { CalendarAppointment } from "./CalendarView";
 
 export const metadata = {
-  title: "Calendar | Cleaner Manager",
+  title: "Calendar",
   description: "Visual schedule and demand calendar for cleaning services.",
 };
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AutomationsDashboard from "./AutomationsDashboard";
 
 export const metadata = {
-  title: "Automations | Cleaner Manager",
+  title: "Automations",
   description: "Manage client automation rules and email dispatch safeguards.",
 };
 

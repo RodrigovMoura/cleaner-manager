@@ -129,7 +129,7 @@ export default function Navbar() {
               className='flex items-center gap-2 group focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1'>
               <span className='text-xl group-hover:scale-110 transition-transform'>✨</span>
               <span className='font-bold text-gray-900 tracking-tight text-base sm:text-lg'>
-                Cleaner Manager
+                Cleaning Management
               </span>
             </Link>
           </div>
@@ -261,7 +261,7 @@ export default function Navbar() {
             <div className='p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50'>
               <div className='flex items-center gap-2'>
                 <span className='text-xl'>✨</span>
-                <span className='font-bold text-gray-900 tracking-tight'>Cleaner Manager</span>
+                <span className='font-bold text-gray-900 tracking-tight'>Cleaning Management</span>
               </div>
               <button
                 type='button'
