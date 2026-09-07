@@ -75,7 +75,7 @@ The schema is defined in `prisma/schema.prisma`.
 3. **`Appointment`**: A scheduled cleaning session.
    - Status: `AppointmentStatus` (`SCHEDULED`, `COMPLETED`, `CANCELLED`).
    - Stores `date`, `price`, `reminderSentAt`.
-   - Supports recurrence generation (e.g. single or bi-weekly batches).
+   - Supports recurrence generation (e.g. single, weekly, bi-weekly, or monthly batches).
 4. **`Invoice`**: A billing document linked to an appointment.
    - Status: `PaymentStatus` (`PENDING`, `PAID`, `OVERDUE`).
    - Stores `invoiceNumber`, `amount`, `dueDate`, `sentAt`, `lastChasedAt`, `paidAt`.

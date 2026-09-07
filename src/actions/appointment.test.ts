@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { updateAppointment, getAppointmentById } from "./appointment";
+import { updateAppointment, getAppointmentById, createAppointment } from "./appointment";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -8,6 +8,10 @@ import { AppointmentStatus, Prisma } from "@prisma/client";
 // Mock dependencies
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    client: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
     appointment: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -238,4 +242,173 @@ describe("appointment actions", () => {
       });
     });
   });
+
+  describe("createAppointment", () => {
+    it("should reject if user is not authenticated", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce(null);
+
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", "2026-10-10T10:00:00Z");
+      formData.append("price", "120.00");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Unauthorized");
+      expect(prisma.appointment.createMany).not.toHaveBeenCalled();
+    });
+
+    it("should reject if required fields are missing", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+
+      const formData = new FormData();
+      formData.append("clientId", "");
+      formData.append("date", "2026-10-10T10:00:00Z");
+      formData.append("price", "120.00");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Client, Date, and Price are required.");
+    });
+
+    it("should reject if date is in the past", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", "2020-01-01T10:00:00Z");
+      formData.append("price", "120.00");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Appointment date cannot be in the past.");
+    });
+
+    it("should reject if client does not exist or does not belong to user", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.client.findFirst).mockResolvedValueOnce(null);
+
+      const futureDate = new Date(Date.now() + 86400000 * 5).toISOString();
+      const formData = new FormData();
+      formData.append("clientId", "client-other");
+      formData.append("date", futureDate);
+      formData.append("price", "120.00");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Client not found or unauthorized.");
+      expect(prisma.appointment.createMany).not.toHaveBeenCalled();
+    });
+
+    it("should create a single appointment for one-time recurrence", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.client.findFirst).mockResolvedValueOnce({ id: "client-1", userId: "user-1" } as never);
+      vi.mocked(prisma.appointment.createMany).mockResolvedValueOnce({ count: 1 } as never);
+
+      const futureDate = new Date("2026-11-10T10:00:00.000Z");
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", futureDate.toISOString());
+      formData.append("price", "120.00");
+      formData.append("recurrence", "none");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(true);
+      expect(prisma.appointment.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            clientId: "client-1",
+            date: futureDate,
+            price: 120,
+            status: AppointmentStatus.SCHEDULED,
+          },
+        ],
+      });
+      expect(revalidatePath).toHaveBeenCalledWith("/schedule");
+      expect(revalidatePath).toHaveBeenCalledWith("/clients/client-1");
+      expect(revalidatePath).toHaveBeenCalledWith("/calendar");
+    });
+
+    it("should create appointments weekly (7 days apart)", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.client.findFirst).mockResolvedValueOnce({ id: "client-1", userId: "user-1" } as never);
+      vi.mocked(prisma.appointment.createMany).mockResolvedValueOnce({ count: 4 } as never);
+
+      const baseDate = new Date("2026-11-01T10:00:00.000Z");
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", baseDate.toISOString());
+      formData.append("price", "150.00");
+      formData.append("recurrence", "weekly");
+      formData.append("occurrences", "4");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("4 weekly appointments");
+
+      expect(prisma.appointment.createMany).toHaveBeenCalledWith({
+        data: [
+          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-08T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-22T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
+        ],
+      });
+    });
+
+    it("should create appointments monthly (preserves day and time, handles months)", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.client.findFirst).mockResolvedValueOnce({ id: "client-1", userId: "user-1" } as never);
+      vi.mocked(prisma.appointment.createMany).mockResolvedValueOnce({ count: 3 } as never);
+
+      const baseDate = new Date(2026, 9, 15, 10, 0); // Oct 15, 2026 10:00
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", baseDate.toISOString());
+      formData.append("price", "200.00");
+      formData.append("recurrence", "monthly");
+      formData.append("occurrences", "3");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("3 monthly appointments");
+
+      const firstCall = vi.mocked(prisma.appointment.createMany).mock.calls[0];
+      const calls = (firstCall?.[0]?.data ?? []) as Prisma.AppointmentCreateManyInput[];
+      expect(calls).toHaveLength(3);
+      expect(new Date(calls[0].date).getMonth()).toBe(9); // October
+      expect(new Date(calls[0].date).getDate()).toBe(15);
+      expect(new Date(calls[1].date).getMonth()).toBe(10); // November
+      expect(new Date(calls[1].date).getDate()).toBe(15);
+      expect(new Date(calls[2].date).getMonth()).toBe(11); // December
+      expect(new Date(calls[2].date).getDate()).toBe(15);
+    });
+
+    it("should create appointments bi-weekly (14 days apart)", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.client.findFirst).mockResolvedValueOnce({ id: "client-1", userId: "user-1" } as never);
+      vi.mocked(prisma.appointment.createMany).mockResolvedValueOnce({ count: 3 } as never);
+
+      const baseDate = new Date("2026-11-01T10:00:00.000Z");
+      const formData = new FormData();
+      formData.append("clientId", "client-1");
+      formData.append("date", baseDate.toISOString());
+      formData.append("price", "120.00");
+      formData.append("recurrence", "biweekly");
+      formData.append("occurrences", "3");
+
+      const result = await createAppointment(formData);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("3 bi-weekly appointments");
+
+      expect(prisma.appointment.createMany).toHaveBeenCalledWith({
+        data: [
+          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-29T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
+        ],
+      });
+    });
+  });
 });
+

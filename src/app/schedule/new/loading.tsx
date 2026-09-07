@@ -33,7 +33,9 @@ export default function NewScheduleLoading() {
         {/* Recurrence Section */}
         <div className='space-y-2 pt-2 border-t border-gray-100'>
           <div className='h-3.5 w-28 bg-gray-200 rounded' />
-          <div className='grid grid-cols-2 gap-3'>
+          <div className='grid grid-cols-2 sm:grid-cols-4 gap-2'>
+            <div className='h-10 bg-gray-100 rounded-lg' />
+            <div className='h-10 bg-gray-100 rounded-lg' />
             <div className='h-10 bg-gray-100 rounded-lg' />
             <div className='h-10 bg-gray-100 rounded-lg' />
           </div>

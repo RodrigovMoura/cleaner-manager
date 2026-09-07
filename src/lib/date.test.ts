@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatToDateTimeLocal, startOfWeek, addDays, isSameDay, getMonthGrid } from "./date";
+import { formatToDateTimeLocal, startOfWeek, addDays, addMonths, isSameDay, getMonthGrid } from "./date";
 
 describe("formatToDateTimeLocal", () => {
   it("should return empty string for null, undefined, or empty string", () => {
@@ -54,5 +54,49 @@ describe("calendar date helpers", () => {
     // First day should be a Monday
     expect(grid[0].getDay()).toBe(1);
   });
+
+  describe("addMonths", () => {
+    it("should add months correctly for standard dates", () => {
+      const d = new Date(2026, 0, 15, 10, 30); // Jan 15, 2026
+      const next = addMonths(d, 1);
+      expect(next.getFullYear()).toBe(2026);
+      expect(next.getMonth()).toBe(1); // February
+      expect(next.getDate()).toBe(15);
+      expect(next.getHours()).toBe(10);
+      expect(next.getMinutes()).toBe(30);
+    });
+
+    it("should handle month-end day clamping (Jan 31 -> Feb 28)", () => {
+      const d = new Date(2026, 0, 31, 14, 0); // Jan 31, 2026
+      const next = addMonths(d, 1);
+      expect(next.getFullYear()).toBe(2026);
+      expect(next.getMonth()).toBe(1); // February
+      expect(next.getDate()).toBe(28); // 2026 is not a leap year
+      expect(next.getHours()).toBe(14);
+    });
+
+    it("should handle leap years correctly (Jan 31, 2024 -> Feb 29, 2024)", () => {
+      const d = new Date(2024, 0, 31, 9, 0); // Jan 31, 2024 (leap year)
+      const next = addMonths(d, 1);
+      expect(next.getFullYear()).toBe(2024);
+      expect(next.getMonth()).toBe(1);
+      expect(next.getDate()).toBe(29);
+    });
+
+    it("should cross year boundaries correctly", () => {
+      const d = new Date(2026, 10, 15); // Nov 15, 2026
+      const next = addMonths(d, 3);
+      expect(next.getFullYear()).toBe(2027);
+      expect(next.getMonth()).toBe(1); // Feb 2027
+      expect(next.getDate()).toBe(15);
+    });
+
+    it("should return the same date when adding 0 months", () => {
+      const d = new Date(2026, 5, 20, 8, 0);
+      const next = addMonths(d, 0);
+      expect(next.getTime()).toBe(d.getTime());
+    });
+  });
 });
+
 

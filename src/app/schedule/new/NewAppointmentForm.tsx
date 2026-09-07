@@ -15,12 +15,35 @@ interface NewAppointmentFormProps {
   defaultClientId?: string;
 }
 
+type RecurrenceType = "none" | "weekly" | "biweekly" | "monthly";
+
+const RECURRENCE_OPTIONS: Record<
+  "weekly" | "biweekly" | "monthly",
+  Array<{ value: string; label: string; sub: string }>
+> = {
+  weekly: [
+    { value: "4", label: "4 visits", sub: "~1 month" },
+    { value: "8", label: "8 visits", sub: "~2 months" },
+    { value: "12", label: "12 visits", sub: "~3 months" },
+  ],
+  biweekly: [
+    { value: "3", label: "3 visits", sub: "~1.5 months" },
+    { value: "6", label: "6 visits", sub: "~3 months" },
+    { value: "12", label: "12 visits", sub: "~6 months" },
+  ],
+  monthly: [
+    { value: "3", label: "3 visits", sub: "~3 months" },
+    { value: "6", label: "6 visits", sub: "~6 months" },
+    { value: "12", label: "12 visits", sub: "~1 year" },
+  ],
+};
+
 export default function NewAppointmentForm({ clients, defaultClientId }: NewAppointmentFormProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
-  const [recurrence, setRecurrence] = useState<"none" | "biweekly">("none");
-  const [occurrences, setOccurrences] = useState("3");
+  const [recurrence, setRecurrence] = useState<RecurrenceType>("none");
+  const [occurrences, setOccurrences] = useState("4");
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -162,9 +185,9 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
           {/* Recurrence Frequency */}
           <div className='space-y-2 pt-2 border-t border-gray-100'>
             <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>Frequency</label>
-            <div className='grid grid-cols-2 gap-2 bg-gray-100/80 p-1 rounded-xl'>
+            <div className='grid grid-cols-2 sm:grid-cols-4 gap-2 bg-gray-100/80 p-1 rounded-xl'>
               <label
-                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all ${
+                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all text-center ${
                   recurrence === "none"
                     ? "bg-white text-gray-900 shadow-xs font-semibold"
                     : "text-gray-600 hover:text-gray-900"
@@ -181,7 +204,27 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
               </label>
 
               <label
-                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-sm font-medium cursor-pointer transition-all ${
+                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all text-center ${
+                  recurrence === "weekly"
+                    ? "bg-white text-blue-700 shadow-xs font-semibold"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}>
+                <input
+                  type='radio'
+                  name='recurrence'
+                  value='weekly'
+                  checked={recurrence === "weekly"}
+                  onChange={() => {
+                    setRecurrence("weekly");
+                    setOccurrences("4");
+                  }}
+                  className='sr-only'
+                />
+                <span>Weekly</span>
+              </label>
+
+              <label
+                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all text-center ${
                   recurrence === "biweekly"
                     ? "bg-white text-blue-700 shadow-xs font-semibold"
                     : "text-gray-600 hover:text-gray-900"
@@ -191,26 +234,51 @@ export default function NewAppointmentForm({ clients, defaultClientId }: NewAppo
                   name='recurrence'
                   value='biweekly'
                   checked={recurrence === "biweekly"}
-                  onChange={() => setRecurrence("biweekly")}
+                  onChange={() => {
+                    setRecurrence("biweekly");
+                    setOccurrences("6");
+                  }}
                   className='sr-only'
                 />
-                <span>Bi-weekly (Every 2 weeks)</span>
+                <span>Bi-weekly</span>
+              </label>
+
+              <label
+                className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all text-center ${
+                  recurrence === "monthly"
+                    ? "bg-white text-blue-700 shadow-xs font-semibold"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}>
+                <input
+                  type='radio'
+                  name='recurrence'
+                  value='monthly'
+                  checked={recurrence === "monthly"}
+                  onChange={() => {
+                    setRecurrence("monthly");
+                    setOccurrences("6");
+                  }}
+                  className='sr-only'
+                />
+                <span>Monthly</span>
               </label>
             </div>
           </div>
 
-          {/* Bi-weekly Occurrences Picker */}
-          {recurrence === "biweekly" && (
+          {/* Recurring Occurrences Picker */}
+          {recurrence !== "none" && (
             <div className='p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-3 animate-in fade-in duration-200'>
               <span className='block text-xs font-semibold text-blue-900 uppercase tracking-wider'>
-                How many recurring visits to create?
+                How many recurring visits to create? (
+                {recurrence === "weekly"
+                  ? "Every week"
+                  : recurrence === "biweekly"
+                  ? "Every 2 weeks"
+                  : "Every month"}
+                )
               </span>
               <div className='grid grid-cols-3 gap-2.5'>
-                {[
-                  { value: "3", label: "3 visits", sub: "~1.5 months" },
-                  { value: "6", label: "6 visits", sub: "~3 months" },
-                  { value: "12", label: "12 visits", sub: "~6 months" },
-                ].map((opt) => {
+                {RECURRENCE_OPTIONS[recurrence].map((opt) => {
                   const isSelected = occurrences === opt.value;
                   return (
                     <label

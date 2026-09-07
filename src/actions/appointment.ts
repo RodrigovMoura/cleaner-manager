@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { sendInvoiceEmail } from "./invoice";
 import { Prisma, AppointmentStatus } from "@prisma/client";
+import { addMonths } from "@/lib/date";
 
 export async function createAppointment(formData: FormData) {
   try {
@@ -16,7 +17,7 @@ export async function createAppointment(formData: FormData) {
     const clientId = formData.get("clientId") as string;
     const dateStr = formData.get("date") as string;
     const priceStr = formData.get("price") as string;
-    const recurrence = formData.get("recurrence") as string;
+    const recurrence = (formData.get("recurrence") as string) || "none";
     const occurrencesStr = formData.get("occurrences") as string;
 
     if (!clientId || !dateStr || !priceStr) {
@@ -25,21 +26,48 @@ export async function createAppointment(formData: FormData) {
 
     const baseDate = new Date(dateStr);
     const price = parseFloat(priceStr);
-    const occurrences = recurrence === "biweekly" ? parseInt(occurrencesStr || "1", 10) : 1;
+
+    if (isNaN(baseDate.getTime())) {
+      return { success: false, message: "Invalid date format." };
+    }
 
     if (baseDate.getTime() < Date.now()) {
       return { success: false, message: "Appointment date cannot be in the past." };
     }
 
-    if (isNaN(price)) {
+    if (isNaN(price) || price < 0) {
       return { success: false, message: "Invalid price format." };
+    }
+
+    let occurrences = 1;
+    if (recurrence === "weekly" || recurrence === "biweekly" || recurrence === "monthly") {
+      const parsed = parseInt(occurrencesStr || "1", 10);
+      occurrences = isNaN(parsed) ? 1 : Math.max(1, Math.min(parsed, 52));
+    }
+
+    // Verify client belongs to current user (multi-tenant security)
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, userId: session.userId },
+    });
+    if (!client) {
+      return { success: false, message: "Client not found or unauthorized." };
     }
 
     const appointmentsData: Prisma.AppointmentCreateManyInput[] = [];
 
     for (let i = 0; i < occurrences; i++) {
-      const appointmentDate = new Date(baseDate);
-      appointmentDate.setDate(baseDate.getDate() + i * 14);
+      let appointmentDate: Date;
+      if (recurrence === "weekly") {
+        appointmentDate = new Date(baseDate);
+        appointmentDate.setDate(baseDate.getDate() + i * 7);
+      } else if (recurrence === "biweekly") {
+        appointmentDate = new Date(baseDate);
+        appointmentDate.setDate(baseDate.getDate() + i * 14);
+      } else if (recurrence === "monthly") {
+        appointmentDate = addMonths(baseDate, i);
+      } else {
+        appointmentDate = new Date(baseDate);
+      }
 
       appointmentsData.push({
         clientId,
@@ -55,11 +83,24 @@ export async function createAppointment(formData: FormData) {
 
     revalidatePath("/schedule");
     revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/calendar");
+    revalidatePath("/");
+
+    const frequencyLabel =
+      recurrence === "weekly"
+        ? "weekly "
+        : recurrence === "biweekly"
+        ? "bi-weekly "
+        : recurrence === "monthly"
+        ? "monthly "
+        : "";
 
     return {
       success: true,
       message:
-        occurrences > 1 ? `Successfully scheduled ${occurrences} appointments!` : "Appointment scheduled successfully!",
+        occurrences > 1
+          ? `Successfully scheduled ${occurrences} ${frequencyLabel}appointments!`
+          : "Appointment scheduled successfully!",
     };
   } catch (error) {
     console.error("Failed to create appointment:", error);

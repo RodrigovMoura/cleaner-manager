@@ -44,6 +44,28 @@ export function addDays(date: Date, days: number): Date {
 }
 
 /**
+ * Adds or subtracts months from a Date object, preserving the time of day
+ * and clamping to the last day of the target month if the day exceeds the month's length.
+ */
+export function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  const targetYear = result.getFullYear() + Math.floor((result.getMonth() + months) / 12);
+  const targetMonth = ((result.getMonth() + months) % 12 + 12) % 12;
+  const originalDay = date.getDate();
+
+  // Set to 1st of target month first to avoid month overflow
+  result.setFullYear(targetYear, targetMonth, 1);
+
+  // Find max days in target month (day 0 of month + 1 gives last day of target month)
+  const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+  // Clamp original day to days in month
+  result.setDate(Math.min(originalDay, daysInMonth));
+
+  return result;
+}
+
+/**
  * Checks if two dates refer to the same calendar day.
  */
 export function isSameDay(d1: Date, d2: Date): boolean {
