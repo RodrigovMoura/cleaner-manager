@@ -137,15 +137,17 @@ export default async function HomePage() {
         </div>
 
         {/* Total Clients */}
-        <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
-          <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
-            Active Clients
-          </span>
-          <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl sm:text-3xl font-bold text-blue-600'>{clientsCount}</span>
-            <span className='text-xs text-gray-400 font-medium'>total</span>
+        <Link href='/clients'>
+          <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
+            <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
+              Active Clients
+            </span>
+            <div className='flex items-baseline gap-1.5'>
+              <span className='text-2xl sm:text-3xl font-bold text-blue-600'>{clientsCount}</span>
+              <span className='text-xs text-gray-400 font-medium'>total</span>
+            </div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Quick Navigation Hub */}
@@ -244,9 +246,7 @@ export default async function HomePage() {
                     </div>
 
                     <div className='flex items-center gap-3 shrink-0 ml-2'>
-                      <span className='text-sm font-bold text-gray-900'>
-                        ${Number(apt.price).toFixed(2)}
-                      </span>
+                      <span className='text-sm font-bold text-gray-900'>${Number(apt.price).toFixed(2)}</span>
                       <Link
                         href={`/schedule/${apt.id}/edit`}
                         className='px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-200 border border-blue-200/80 rounded-lg transition-colors'
