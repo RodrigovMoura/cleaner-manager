@@ -22,7 +22,7 @@ export default function ScheduleLoading() {
 
       {/* Appointments List Skeleton */}
       <div className='space-y-3'>
-        {[...Array(5)].map((_, i) => (
+        {[...Array(8)].map((_, i) => (
           <div
             key={i}
             className='bg-white border border-gray-200 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs'>

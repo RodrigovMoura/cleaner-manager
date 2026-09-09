@@ -214,6 +214,7 @@ export async function updateAppointmentStatus(
     revalidatePath("/schedule");
     revalidatePath("/invoices");
     revalidatePath(`/clients/${appointment.clientId}`);
+    revalidatePath("/");
 
     return { success: true, message: `Appointment marked as ${newStatus.toLowerCase()}!` };
   } catch (error) {

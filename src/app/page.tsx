@@ -2,73 +2,123 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import AppointmentActions from "./schedule/AppointmentActions";
+import ClientContactActions from "@/components/ClientContactActions";
 
 export default async function HomePage() {
   const session = await getSession();
 
   if (!session?.userId) {
     redirect("/login");
+    return null;
   }
 
-  // Time boundary definitions (Today and Start of Month)
+  // Time boundary definitions
   const now = new Date();
+  const currentHour = now.getHours();
+  const greeting =
+    currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Monday as start of week (Australian / ISO standard)
+  const dayOfWeek = now.getDay();
+  const diffToMonday = (dayOfWeek + 6) % 7;
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6, 23, 59, 59, 999);
+
   // Parallel queries for maximum performance
-  const [clientsCount, todaysAppointments, upcomingAppointments, pendingInvoices, monthlyPaidInvoices] =
-    await Promise.all([
-      // 1. Total clients
-      prisma.client.count({
-        where: { userId: session.userId },
-      }),
+  const [
+    user,
+    todaysAppointments,
+    thisWeekAppointments,
+    upcomingAppointments,
+    overdueInvoices,
+    pendingInvoices,
+    monthlyPaidInvoices,
+  ] = await Promise.all([
+    // 1. Current user details (for greeting)
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true },
+    }),
 
-      // 2. Today's cleanings
-      prisma.appointment.findMany({
-        where: {
-          client: { userId: session.userId },
-          date: { gte: startOfToday, lte: endOfToday },
-        },
-        include: { client: true },
-        orderBy: { date: "asc" },
-      }),
+    // 2. Today's cleanings with full client details
+    prisma.appointment.findMany({
+      where: {
+        client: { userId: session.userId },
+        date: { gte: startOfToday, lte: endOfToday },
+      },
+      include: { client: true },
+      orderBy: { date: "asc" },
+    }),
 
-      // 3. Upcoming scheduled cleanings (from today onwards)
-      prisma.appointment.findMany({
-        where: {
-          client: { userId: session.userId },
-          date: { gte: startOfToday },
-          status: "SCHEDULED",
-        },
-        include: { client: true },
-        orderBy: { date: "asc" },
-        take: 5,
-      }),
+    // 3. This week's cleanings for weekly capacity & earnings
+    prisma.appointment.findMany({
+      where: {
+        client: { userId: session.userId },
+        date: { gte: startOfWeek, lte: endOfWeek },
+        status: { in: ["SCHEDULED", "COMPLETED"] },
+      },
+      select: { price: true, status: true },
+    }),
 
-      // 4. Pending or overdue invoices
-      prisma.invoice.findMany({
-        where: {
-          client: { userId: session.userId },
-          status: { in: ["PENDING", "OVERDUE"] },
-        },
-        select: { amount: true, status: true },
-      }),
+    // 4. Upcoming scheduled cleanings strictly after today
+    prisma.appointment.findMany({
+      where: {
+        client: { userId: session.userId },
+        date: { gt: endOfToday },
+        status: "SCHEDULED",
+      },
+      include: { client: true },
+      orderBy: { date: "asc" },
+      take: 5,
+    }),
 
-      // 5. Invoices paid this month
-      prisma.invoice.findMany({
-        where: {
-          client: { userId: session.userId },
-          status: "PAID",
-          paidAt: { gte: startOfMonth },
-        },
-        select: { amount: true },
-      }),
-    ]);
+    // 5. Overdue invoices needing immediate follow-up
+    prisma.invoice.findMany({
+      where: {
+        client: { userId: session.userId },
+        status: "OVERDUE",
+      },
+      include: { client: true },
+      orderBy: { dueDate: "asc" },
+      take: 5,
+    }),
 
-  // Financial calculations
-  const totalPendingAmount = pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
+    // 6. Pending invoices
+    prisma.invoice.findMany({
+      where: {
+        client: { userId: session.userId },
+        status: "PENDING",
+      },
+      select: { amount: true },
+    }),
+
+    // 7. Invoices paid this month
+    prisma.invoice.findMany({
+      where: {
+        client: { userId: session.userId },
+        status: "PAID",
+        paidAt: { gte: startOfMonth },
+      },
+      select: { amount: true },
+    }),
+  ]);
+
+  // Operational & Financial calculations
+  const completedTodayCount = todaysAppointments.filter((apt) => apt.status === "COMPLETED").length;
+  const scheduledTodayCount = todaysAppointments.filter((apt) => apt.status === "SCHEDULED").length;
+
+  const thisWeekEarnings = thisWeekAppointments.reduce((acc, apt) => acc + Number(apt.price), 0);
   const totalMonthEarnings = monthlyPaidInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
+  const totalOverdueAmount = overdueInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
+  const totalPendingAmount =
+    pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0) + totalOverdueAmount;
+
+  const firstName = user?.name ? user.name.split(" ")[0] : "Cleaner";
 
   const formattedCurrentDate = now.toLocaleDateString("en-AU", {
     weekday: "long",
@@ -77,139 +127,299 @@ export default async function HomePage() {
     year: "numeric",
   });
 
+  // Next job info if today has no jobs
+  const nextJob = upcomingAppointments.length > 0 ? upcomingAppointments[0] : null;
+  const nextJobDateObj = nextJob ? new Date(nextJob.date) : null;
+  const isTomorrow =
+    nextJobDateObj &&
+    nextJobDateObj.getDate() === now.getDate() + 1 &&
+    nextJobDateObj.getMonth() === now.getMonth() &&
+    nextJobDateObj.getFullYear() === now.getFullYear();
+
+  const formattedNextJobDate = nextJobDateObj
+    ? isTomorrow
+      ? `Tomorrow at ${nextJobDateObj.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}`
+      : `${nextJobDateObj.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })} at ${nextJobDateObj.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}`
+    : null;
+
   return (
-    <div className='max-w-5xl mx-auto p-4 sm:p-6 lg:p-8 text-gray-900 space-y-6 sm:space-y-8'>
-      {/* Top Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200'>
+    <div className='max-w-5xl mx-auto p-3.5 sm:p-6 lg:p-8 text-gray-900 space-y-6 sm:space-y-8'>
+      {/* Top Header & Quick Actions */}
+      <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200'>
         <div>
-          <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-gray-900'>Dashboard</h1>
-          <p className='text-xs sm:text-sm text-gray-500 mt-1 capitalize'>{formattedCurrentDate}</p>
+          <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-gray-900'>
+            {greeting}, {firstName} 👋
+          </h1>
+          <p className='text-xs sm:text-sm text-gray-500 mt-0.5 capitalize'>{formattedCurrentDate}</p>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className='flex items-center gap-2.5 flex-wrap sm:flex-nowrap'>
+        {/* Quick Actions (Full touch-targets for mobile thumbs) */}
+        <div className='flex items-center gap-2.5 w-full sm:w-auto'>
           <Link
             href='/schedule/new'
-            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all'>
+            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs transition-all min-h-[42px]'>
             <span>＋</span>
             <span>Schedule Cleaning</span>
           </Link>
           <Link
             href='/clients/new'
-            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl shadow-xs transition-all'>
+            className='flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 active:bg-gray-100 border border-gray-300 rounded-xl shadow-xs transition-all min-h-[42px]'>
             <span>＋</span>
             <span>Add Client</span>
           </Link>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4'>
-        {/* Today's Cleanings */}
+      {/* KPI Highlights: Mobile-First 2x2 Grid */}
+      <div className='grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4'>
+        {/* Today's Jobs */}
         <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
-          <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
+          <span className='text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1'>
             Today&apos;s Jobs
           </span>
           <div className='flex items-baseline gap-1.5'>
             <span className='text-2xl sm:text-3xl font-bold text-gray-900'>{todaysAppointments.length}</span>
             <span className='text-xs text-gray-400 font-medium'>cleanings</span>
           </div>
+          <p className='text-[11px] text-gray-500 mt-1 truncate'>
+            {completedTodayCount > 0
+              ? `${completedTodayCount} completed • ${scheduledTodayCount} left`
+              : `${scheduledTodayCount} scheduled`}
+          </p>
         </div>
 
-        {/* Pending Revenue */}
+        {/* This Week's Volume */}
         <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
-          <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
-            Pending Invoices
+          <span className='text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1'>
+            This Week
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl sm:text-3xl font-bold text-amber-600'>${totalPendingAmount.toFixed(2)}</span>
+            <span className='text-2xl sm:text-3xl font-bold text-blue-600'>${thisWeekEarnings.toFixed(2)}</span>
           </div>
+          <p className='text-[11px] text-gray-500 mt-1 truncate'>
+            {thisWeekAppointments.length} jobs planned
+          </p>
         </div>
 
-        {/* Monthly Earnings */}
+        {/* Earned this Month */}
         <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
-          <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
+          <span className='text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1'>
             Earned this Month
           </span>
           <div className='flex items-baseline gap-1.5'>
-            <span className='text-2xl sm:text-3xl font-bold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
+            <span className='text-2xl sm:text-3xl font-bold text-emerald-600'>
+              ${totalMonthEarnings.toFixed(2)}
+            </span>
           </div>
+          <p className='text-[11px] text-gray-500 mt-1 truncate'>paid invoices</p>
         </div>
 
-        {/* Total Clients */}
-        <Link href='/clients'>
-          <div className='bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-xs hover:border-gray-300 transition-all'>
-            <span className='text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-1'>
-              Active Clients
+        {/* Overdue / Pending Invoices */}
+        <Link href='/invoices' className='block group'>
+          <div
+            className={`bg-white p-4 sm:p-5 rounded-2xl border shadow-xs transition-all group-hover:border-gray-300 ${
+              overdueInvoices.length > 0 ? "border-red-200/90 bg-red-50/20" : "border-gray-200"
+            }`}>
+            <span className='text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1'>
+              Outstanding
             </span>
             <div className='flex items-baseline gap-1.5'>
-              <span className='text-2xl sm:text-3xl font-bold text-blue-600'>{clientsCount}</span>
-              <span className='text-xs text-gray-400 font-medium'>total</span>
+              <span
+                className={`text-2xl sm:text-3xl font-bold ${
+                  overdueInvoices.length > 0 ? "text-red-600" : "text-amber-600"
+                }`}>
+                ${totalPendingAmount.toFixed(2)}
+              </span>
             </div>
+            <p
+              className={`text-[11px] font-semibold mt-1 truncate ${
+                overdueInvoices.length > 0 ? "text-red-600" : "text-gray-500"
+              }`}>
+              {overdueInvoices.length > 0
+                ? `⚠️ ${overdueInvoices.length} overdue`
+                : "All on track"}
+            </p>
           </div>
         </Link>
       </div>
 
-      {/* Quick Navigation Hub */}
-      <div className='grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4'>
-        <Link
-          href='/calendar'
-          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
-          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📅</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
-            Calendar
-          </span>
-        </Link>
+      {/* HERO SECTION: Today's Agenda (Sua Rota de Hoje) */}
+      <div className='space-y-3.5'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-2'>
+            <span className='text-lg'>📍</span>
+            <h2 className='text-lg sm:text-xl font-bold text-gray-900 tracking-tight'>
+              Today&apos;s Agenda
+            </h2>
+            <span className='text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100'>
+              {todaysAppointments.length} {todaysAppointments.length === 1 ? "job" : "jobs"}
+            </span>
+          </div>
+          <Link
+            href='/schedule?tab=upcoming'
+            className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+            Full Schedule →
+          </Link>
+        </div>
 
-        <Link
-          href='/schedule'
-          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
-          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📋</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
-            Schedule
-          </span>
-        </Link>
+        {todaysAppointments.length === 0 ? (
+          /* Empty State for Today: Positive, informative */
+          <div className='bg-white border border-dashed border-gray-200 rounded-3xl p-6 sm:p-10 text-center space-y-3'>
+            <span className='text-3xl sm:text-4xl block'>☕</span>
+            <h3 className='text-base font-bold text-gray-900'>No cleanings scheduled for today</h3>
+            <p className='text-xs sm:text-sm text-gray-500 max-w-md mx-auto'>
+              {nextJob
+                ? `Your next appointment is ${formattedNextJobDate} with ${nextJob.client.name}. Enjoy your time or plan ahead!`
+                : "No appointments coming up. Add a new cleaning to keep your calendar filled."}
+            </p>
+            <div className='pt-2'>
+              <Link
+                href='/schedule/new'
+                className='inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors'>
+                <span>＋</span>
+                <span>Schedule an Appointment</span>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          /* Today's Jobs List: Rich, actionable cards designed for mobile */
+          <div className='space-y-3.5'>
+            {todaysAppointments.map((apt) => {
+              const dateObj = new Date(apt.date);
+              const formattedTime = dateObj.toLocaleTimeString("en-AU", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              const isCompleted = apt.status === "COMPLETED";
 
-        <Link
-          href='/clients'
-          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
-          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>👥</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
-            Clients
-          </span>
-        </Link>
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                apt.client.address,
+              )}`;
 
-        <Link
-          href='/invoices'
-          className='p-3.5 sm:p-5 bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 rounded-2xl shadow-xs text-center transition-all group'>
-          <span className='block text-xl sm:text-2xl mb-1.5 group-hover:scale-110 transition-transform'>📄</span>
-          <span className='text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors'>
-            Invoices
-          </span>
-        </Link>
+              return (
+                <div
+                  key={apt.id}
+                  className={`bg-white border rounded-2xl p-4 sm:p-5 shadow-xs transition-all space-y-3.5 ${
+                    isCompleted
+                      ? "border-emerald-200 bg-emerald-50/15"
+                      : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                  }`}>
+                  {/* Top Bar: Time, Status, and Price */}
+                  <div className='flex items-center justify-between gap-2 flex-wrap'>
+                    <div className='flex items-center gap-2'>
+                      <span className='font-bold text-sm text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg'>
+                        ⏰ {formattedTime}
+                      </span>
+                      <span
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                          apt.status === "SCHEDULED"
+                            ? "bg-blue-50 text-blue-700 border-blue-100"
+                            : isCompleted
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              : "bg-red-50 text-red-700 border-red-100"
+                        }`}>
+                        {apt.status}
+                      </span>
+                    </div>
+
+                    <span className='text-base sm:text-lg font-bold text-gray-900'>
+                      ${Number(apt.price).toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Client & Address Info */}
+                  <div className='space-y-1.5'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <Link
+                        href={`/clients/${apt.client.id}`}
+                        className='text-base font-bold text-gray-900 hover:text-blue-600 hover:underline truncate'>
+                        {apt.client.name}
+                      </Link>
+                    </div>
+
+                    {apt.client.address && (
+                      <div className='flex items-center gap-2 text-xs text-gray-600 flex-wrap'>
+                        <span className='truncate max-w-xs sm:max-w-md'>📍 {apt.client.address}</span>
+                        <a
+                          href={mapsUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 px-2 py-0.5 rounded-md text-[11px] transition-colors shrink-0'>
+                          <span>Open Maps</span>
+                          <svg className='w-3 h-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                            <path
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                              strokeWidth='2'
+                              d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'
+                            />
+                          </svg>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Client Notes / Instructions: High utility for cleaners on site */}
+                  {apt.client.notes && apt.client.notes.trim() !== "" && (
+                    <div className='p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5'>
+                      <span className='text-base shrink-0 mt-0.5'>📝</span>
+                      <div className='min-w-0 flex-1'>
+                        <span className='font-bold uppercase tracking-wider text-[10px] text-amber-800 block'>
+                          Client Instructions / Notes
+                        </span>
+                        <p className='text-amber-950 font-medium whitespace-pre-line mt-0.5 leading-relaxed'>
+                          {apt.client.notes}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Options: Mobile-First Call / SMS / WhatsApp */}
+                  {apt.client.phone && (
+                    <div className='pt-1 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5'>
+                      <span className='text-xs text-gray-500 font-medium'>
+                        Contact ({apt.client.phone}):
+                      </span>
+                      <ClientContactActions phone={apt.client.phone} clientName={apt.client.name} />
+                    </div>
+                  )}
+
+                  {/* Action Bar: Complete / Edit / Cancel */}
+                  <div className='pt-2 border-t border-gray-100 flex items-center justify-end gap-2'>
+                    <AppointmentActions
+                      appointmentId={apt.id}
+                      currentStatus={apt.status}
+                      clientName={apt.client.name}
+                      initialDate={apt.date}
+                      initialPrice={Number(apt.price)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Main Content Area */}
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-        {/* Left Column: Upcoming Cleanings (Takes 2 cols on desktop) */}
+      {/* Secondary Sections: 2 Columns on Desktop, Stacked on Mobile */}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2'>
+        {/* Left: Upcoming Cleanings (Next days) */}
         <div className='lg:col-span-2 space-y-3.5'>
           <div className='flex items-center justify-between'>
-            <h2 className='text-base font-bold text-gray-900'>Upcoming Cleanings</h2>
-            <Link href='/schedule' className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+            <div className='flex items-center gap-2'>
+              <span className='text-base'>🗓️</span>
+              <h2 className='text-base font-bold text-gray-900'>Upcoming Cleanings</h2>
+            </div>
+            <Link
+              href='/schedule'
+              className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
               View All →
             </Link>
           </div>
 
           {upcomingAppointments.length === 0 ? (
-            <div className='bg-white border border-dashed border-gray-300 rounded-2xl p-8 text-center'>
-              <span className='text-2xl block mb-2'>📅</span>
-              <p className='text-sm font-medium text-gray-700 mb-1'>No upcoming cleanings</p>
-              <p className='text-xs text-gray-400 mb-4'>Schedule your next appointments to see them here.</p>
-              <Link
-                href='/schedule/new'
-                className='inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
-                ＋ Schedule an appointment
-              </Link>
+            <div className='bg-white border border-dashed border-gray-200 rounded-2xl p-6 text-center text-xs sm:text-sm text-gray-500'>
+              No further cleanings scheduled this week.
             </div>
           ) : (
             <div className='space-y-2.5'>
@@ -228,29 +438,31 @@ export default async function HomePage() {
                 return (
                   <div
                     key={apt.id}
-                    className='p-4 bg-white border border-gray-200 rounded-2xl shadow-xs flex items-center justify-between gap-3 hover:border-gray-300 hover:shadow-sm transition-all'>
+                    className='p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-gray-300 transition-all'>
                     <div className='space-y-1 min-w-0 flex-1'>
                       <div className='flex items-center gap-2 flex-wrap'>
                         <Link
                           href={`/clients/${apt.client.id}`}
-                          className='font-semibold text-sm text-gray-900 hover:text-blue-600 hover:underline truncate'>
+                          className='font-bold text-sm text-gray-900 hover:text-blue-600 hover:underline truncate'>
                           {apt.client.name}
                         </Link>
                         <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100/60'>
-                          {formattedTime}
+                          {formattedDate} • {formattedTime}
                         </span>
                       </div>
-                      <p className='text-xs text-gray-500 truncate'>
-                        {formattedDate} {apt.client.address && `• ${apt.client.address}`}
-                      </p>
+                      {apt.client.address && (
+                        <p className='text-xs text-gray-500 truncate'>📍 {apt.client.address}</p>
+                      )}
                     </div>
 
-                    <div className='flex items-center gap-3 shrink-0 ml-2'>
-                      <span className='text-sm font-bold text-gray-900'>${Number(apt.price).toFixed(2)}</span>
+                    <div className='flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100'>
+                      <span className='text-sm font-bold text-gray-900'>
+                        ${Number(apt.price).toFixed(2)}
+                      </span>
+                      <ClientContactActions phone={apt.client.phone} clientName={apt.client.name} compact />
                       <Link
                         href={`/schedule/${apt.id}/edit`}
-                        className='px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-200 border border-blue-200/80 rounded-lg transition-colors'
-                        title='Edit cleaning date and time'>
+                        className='px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 rounded-lg transition-colors'>
                         Edit
                       </Link>
                     </div>
@@ -261,42 +473,98 @@ export default async function HomePage() {
           )}
         </div>
 
-        {/* Right Column: Pending Invoices Summary */}
+        {/* Right: Financial & Collection Priorities */}
         <div className='space-y-3.5'>
           <div className='flex items-center justify-between'>
-            <h2 className='text-base font-bold text-gray-900'>Pending Payments</h2>
-            <Link href='/invoices' className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
-              View Invoices →
+            <div className='flex items-center gap-1.5'>
+              <span className='text-base'>💳</span>
+              <h2 className='text-base font-bold text-gray-900'>Billing & Cash Flow</h2>
+            </div>
+            <Link
+              href='/invoices'
+              className='text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline'>
+              Invoices →
             </Link>
           </div>
 
-          <div className='bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4'>
-            <div>
-              <span className='text-xs font-medium text-gray-500 block uppercase tracking-wider mb-0.5'>
-                Total Unpaid Balance
-              </span>
-              <span className='text-2xl sm:text-3xl font-bold text-gray-900'>${totalPendingAmount.toFixed(2)}</span>
-            </div>
+          <div className='bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4'>
+            {/* Overdue Section: Priority Action Items */}
+            {overdueInvoices.length > 0 ? (
+              <div className='space-y-2.5'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs font-bold text-red-600 uppercase tracking-wider flex items-center gap-1'>
+                    <span>⚠️</span>
+                    <span>Action Required ({overdueInvoices.length})</span>
+                  </span>
+                  <span className='text-xs font-bold text-red-600'>
+                    ${totalOverdueAmount.toFixed(2)}
+                  </span>
+                </div>
 
-            <div className='border-t border-gray-100 pt-3.5 space-y-1.5'>
-              <div className='flex justify-between text-xs py-1 text-gray-600'>
-                <span>Pending Invoices</span>
-                <span className='font-semibold text-gray-900'>
-                  {pendingInvoices.filter((i) => i.status === "PENDING").length}
-                </span>
+                <div className='space-y-2'>
+                  {overdueInvoices.map((inv) => {
+                    const daysOverdue = Math.max(
+                      1,
+                      Math.floor((now.getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24)),
+                    );
+
+                    return (
+                      <div
+                        key={inv.id}
+                        className='p-3 bg-red-50/50 border border-red-200/80 rounded-xl space-y-2'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <Link
+                              href={`/clients/${inv.client.id}`}
+                              className='font-bold text-xs text-gray-900 hover:text-red-700 hover:underline'>
+                              {inv.client.name}
+                            </Link>
+                            <p className='text-[10px] text-red-600 font-semibold mt-0.5'>
+                              {daysOverdue} {daysOverdue === 1 ? "day" : "days"} overdue
+                            </p>
+                          </div>
+                          <span className='text-xs font-bold text-red-700'>
+                            ${Number(inv.amount).toFixed(2)}
+                          </span>
+                        </div>
+
+                        {/* Quick Chase Contact (Call / SMS / WhatsApp) */}
+                        <div className='flex items-center justify-between pt-1.5 border-t border-red-100'>
+                          <span className='text-[10px] font-medium text-gray-500'>Chase payment:</span>
+                          <ClientContactActions
+                            phone={inv.client.phone}
+                            clientName={inv.client.name}
+                            compact
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className='flex justify-between text-xs py-1 text-gray-600'>
-                <span>Overdue Invoices</span>
-                <span className='font-semibold text-red-600'>
-                  {pendingInvoices.filter((i) => i.status === "OVERDUE").length}
-                </span>
+            ) : (
+              <div className='p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center gap-2 text-xs text-emerald-800 font-medium'>
+                <span className='text-emerald-600 text-sm'>✓</span>
+                <span>All invoices are currently up to date!</span>
+              </div>
+            )}
+
+            {/* Monthly Summary Breakdown */}
+            <div className='border-t border-gray-100 pt-3 space-y-2'>
+              <div className='flex justify-between text-xs py-0.5 text-gray-600'>
+                <span>Total Outstanding</span>
+                <span className='font-semibold text-gray-900'>${totalPendingAmount.toFixed(2)}</span>
+              </div>
+              <div className='flex justify-between text-xs py-0.5 text-gray-600'>
+                <span>Collected this Month</span>
+                <span className='font-semibold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
               </div>
             </div>
 
             <Link
               href='/invoices'
-              className='block w-full text-center py-2.5 px-3 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 rounded-xl transition-colors'>
-              Manage Payments & Invoices →
+              className='block w-full text-center py-2.5 px-3 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100/80 rounded-xl transition-colors min-h-[40px] flex items-center justify-center'>
+              Manage Invoices & Payments →
             </Link>
           </div>
         </div>
