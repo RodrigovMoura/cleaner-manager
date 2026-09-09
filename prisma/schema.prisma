@@ -10,7 +10,7 @@ model User {
   id        String   @id @default(uuid())
   name      String
   email     String   @unique
-  password  String // Hash da senha (bcrypt/argon2)
+  password  String // Password hash (bcrypt/argon2)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -35,7 +35,7 @@ model Client {
   notes        String?
   defaultPrice Decimal
 
-  // TOGGLES E PREFERÊNCIAS INDIVIDUAIS
+  // INDIVIDUAL TOGGLES AND PREFERENCES
   enableAppointmentReminder Boolean @default(true)
   reminderDaysBefore        Int     @default(1)
 
@@ -86,7 +86,7 @@ model Invoice {
   dueDate       DateTime
   status        PaymentStatus @default(PENDING)
 
-  // SNAPSHOT DOS DADOS BANCÁRIOS CAPTURADOS NO MOMENTO DA EMISSÃO
+  // SNAPSHOT OF BANK DETAILS CAPTURED AT TIME OF ISSUANCE
   paymentAccountName String?
   paymentBsb         String?
   paymentAccountNo   String?

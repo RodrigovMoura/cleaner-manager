@@ -257,7 +257,7 @@ export default function Navbar() {
 
           {/* Drawer container */}
           <div className='fixed inset-y-0 left-0 max-w-xs w-full bg-white shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200'>
-            {/* Header da Gaveta */}
+            {/* Drawer Header */}
             <div className='p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50'>
               <div className='flex items-center gap-2'>
                 <span className='text-xl'>✨</span>
@@ -274,9 +274,9 @@ export default function Navbar() {
               </button>
             </div>
 
-            {/* Links Principais */}
+            {/* Main Links */}
             <div className='p-4 space-y-4 flex-1 overflow-y-auto'>
-              {/* Seção Operacional */}
+              {/* Operational Section */}
               <div>
                 <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
                   Operations
@@ -302,7 +302,7 @@ export default function Navbar() {
                 </div>
               </div>
 
-              {/* Seção Gestão & Ferramentas */}
+              {/* Management & Tools Section */}
               <div className='pt-2 border-t border-gray-100'>
                 <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
                   Management & Rules
@@ -328,7 +328,7 @@ export default function Navbar() {
                 </div>
               </div>
 
-              {/* Atalhos Rápidos */}
+              {/* Quick Shortcuts */}
               <div className='pt-2 border-t border-gray-100'>
                 <div className='text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 mb-1.5'>
                   Quick Actions
@@ -352,7 +352,7 @@ export default function Navbar() {
               </div>
             </div>
 
-            {/* Rodapé da Gaveta (Logout) */}
+            {/* Drawer Footer (Logout) */}
             <div className='p-4 border-t border-gray-100 bg-gray-50/80'>
               <button
                 type='button'

@@ -17,7 +17,7 @@ interface Prediction {
   description: string;
 }
 
-// Fallback seguro de geração de UUID para ambientes sem suporte a crypto.randomUUID (ex: conexões HTTP locais no mobile)
+// Safe fallback UUID generator for environments without crypto.randomUUID support (e.g. local HTTP connections on mobile)
 function generateUUID(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -55,7 +55,7 @@ export default function AddressAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Inicializa Session Token para agrupar consultas da sessão
+  // Initialize Session Token to group autocomplete queries for billing/session tracking
   useEffect(() => {
     sessionTokenRef.current = generateUUID();
   }, []);
@@ -66,7 +66,7 @@ export default function AddressAutocomplete({
     setInternalAddress(defaultValue);
   }
 
-  // Fecha o dropdown ao clicar fora do componente
+  // Close dropdown when clicking outside the component
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -82,7 +82,7 @@ export default function AddressAutocomplete({
     };
   }, []);
 
-  // Limpa o timer de debounce ao desmontar
+  // Clear debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -91,7 +91,7 @@ export default function AddressAutocomplete({
     };
   }, []);
 
-  // Função central de busca na API
+  // Core API search function
   const fetchPredictions = async (query: string) => {
     const trimmed = query.trim();
     if (trimmed.length < 2 || isManualMode) {
@@ -129,7 +129,7 @@ export default function AddressAutocomplete({
     }
   };
 
-  // Dispara busca com debounce a cada alteração de texto do usuário
+  // Trigger debounced search on user text input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     if (!isControlled) {
@@ -157,7 +157,7 @@ export default function AddressAutocomplete({
     }, 250);
   };
 
-  // Seleciona um endereço da lista
+  // Select an address from the suggestion list
   const handleSelect = useCallback(
     (selectedDescription: string) => {
       if (debounceTimerRef.current) {
@@ -180,10 +180,10 @@ export default function AddressAutocomplete({
     [isControlled, onAddressChange]
   );
 
-  // Gerencia navegação por teclado e impede submissão acidental do formulário ao pressionar Enter
+  // Manage keyboard navigation and prevent accidental form submission on Enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      e.preventDefault(); // Sempre impede o envio acidental do formulário ao teclar Enter no campo de endereço
+      e.preventDefault(); // Always prevent accidental form submission when pressing Enter in the address input
 
       if (isOpen && predictions.length > 0) {
         const targetIndex = highlightedIndex >= 0 ? highlightedIndex : 0;
@@ -271,7 +271,7 @@ export default function AddressAutocomplete({
           </div>
         )}
 
-        {/* Dropdown de Sugestões */}
+        {/* Suggestions Dropdown */}
         {isOpen && !isManualMode && (
           <div
             id={`${name}-listbox`}
@@ -309,7 +309,7 @@ export default function AddressAutocomplete({
               </div>
             ) : null}
 
-            {/* Opção de Fallback no rodapé do Dropdown */}
+            {/* Fallback option in dropdown footer */}
             <div className='p-2.5 bg-gray-50/90 border-t border-gray-100 text-center'>
               <button
                 type='button'

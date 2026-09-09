@@ -204,9 +204,9 @@ export async function updateAppointmentStatus(
         },
       });
 
-      // Se autoSendInvoice estiver ativo e cliente tiver email, envia automaticamente
+      // If autoSendInvoice is active and client has an email, send automatically
       if (appointment.client.autoSendInvoice && appointment.client.email) {
-        // Chamada interna assíncrona para envio imediato
+        // Asynchronous internal call for immediate dispatch
         await sendInvoiceEmail(createdInvoice.id);
       }
     }

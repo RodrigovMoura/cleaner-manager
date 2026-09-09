@@ -2,10 +2,8 @@
 
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { jwtVerify } from "jose";
-import { createSession, destroySession } from "@/lib/auth";
+import { createSession, destroySession, getSession as getSessionFromLib } from "@/lib/auth";
 import {
   isEmailAuthorized,
   sanitizeInput,
@@ -94,6 +92,9 @@ export async function registerUser(formData: FormData): Promise<AuthActionResult
   redirect("/");
 }
 
+// Constant-time dummy hash to mitigate user enumeration timing attacks
+const DUMMY_HASH = "$2b$10$epRnT3NZq3742TTphWDGEeFs1ec1hcIZpqoU5UT9pTLt8L5f7p7v2";
+
 export async function loginUser(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -107,6 +108,7 @@ export async function loginUser(formData: FormData) {
   });
 
   if (!user) {
+    await bcrypt.compare(password, DUMMY_HASH);
     return { error: "Wrong credentials" };
   }
 
@@ -125,19 +127,6 @@ export async function logoutUser() {
   redirect("/login");
 }
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
-
 export async function getSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-
-  if (!token) return null;
-
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload as { userId: string; email?: string };
-  } catch (error) {
-    console.error("Error verifying JWT:", error);
-    return null;
-  }
+  return await getSessionFromLib();
 }

@@ -33,6 +33,6 @@ export async function generateInvoicePdfBuffer(data: GenerateInvoicePdfBufferPro
     },
   });
 
-  // Type cast para satisfazer a tipagem estrita do renderToBuffer
+  // Type cast to satisfy strict renderToBuffer typing
   return await renderToBuffer(element as unknown as React.ReactElement<DocumentProps>);
 }

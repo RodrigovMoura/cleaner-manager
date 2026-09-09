@@ -10,21 +10,21 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  // Definição dos limites de tempo (Hoje e Início do Mês)
+  // Time boundary definitions (Today and Start of Month)
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Consultas em paralelo para máxima performance
+  // Parallel queries for maximum performance
   const [clientsCount, todaysAppointments, upcomingAppointments, pendingInvoices, monthlyPaidInvoices] =
     await Promise.all([
-      // 1. Total de clientes
+      // 1. Total clients
       prisma.client.count({
         where: { userId: session.userId },
       }),
 
-      // 2. Limpezas de hoje
+      // 2. Today's cleanings
       prisma.appointment.findMany({
         where: {
           client: { userId: session.userId },
@@ -34,7 +34,7 @@ export default async function HomePage() {
         orderBy: { date: "asc" },
       }),
 
-      // 3. Próximas limpezas agendadas (a partir de hoje)
+      // 3. Upcoming scheduled cleanings (from today onwards)
       prisma.appointment.findMany({
         where: {
           client: { userId: session.userId },
@@ -46,7 +46,7 @@ export default async function HomePage() {
         take: 5,
       }),
 
-      // 4. Invoices pendentes ou atrasadas
+      // 4. Pending or overdue invoices
       prisma.invoice.findMany({
         where: {
           client: { userId: session.userId },
@@ -55,7 +55,7 @@ export default async function HomePage() {
         select: { amount: true, status: true },
       }),
 
-      // 5. Invoices pagas neste mês
+      // 5. Invoices paid this month
       prisma.invoice.findMany({
         where: {
           client: { userId: session.userId },
@@ -66,7 +66,7 @@ export default async function HomePage() {
       }),
     ]);
 
-  // Cálculos financeiros
+  // Financial calculations
   const totalPendingAmount = pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
   const totalMonthEarnings = monthlyPaidInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
 

@@ -511,15 +511,15 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
                                 ? "bg-gray-50 border-gray-200"
                                 : "bg-blue-50/70 border-blue-200 hover:border-blue-300"
                           }`}>
-                          {/* 1. Horário (24h) - alinhado à esquerda */}
+                          {/* 1. Time (24h) - left-aligned */}
                           <div className='font-bold text-xs text-blue-700 tracking-tight text-left'>
                             {formatTime(apt.date)}
                           </div>
-                          {/* 2. Nome com inicial do sobrenome - alinhado à esquerda */}
+                          {/* 2. Name with last name initial - left-aligned */}
                           <div className='font-semibold text-gray-900 truncate text-xs text-left mt-0.5'>
                             {getClientWeekName(apt.client.name)}
                           </div>
-                          {/* 3. Linha fina separadora após o nome e Status centralizado */}
+                          {/* 3. Thin separator line after name and centered Status */}
                           <div
                             className={`border-t border-black/10 mt-1.5 pt-1 text-center text-[11px] truncate ${
                               apt.status === "COMPLETED"

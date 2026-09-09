@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { registerUser } from "./auth";
+import { registerUser, loginUser } from "./auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/auth";
@@ -158,6 +158,84 @@ describe("registerUser server action", () => {
       },
     });
     expect(createSession).toHaveBeenCalledWith("new-user-id");
+    expect(redirect).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("loginUser server action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should return error when email or password is missing", async () => {
+    const formData = new FormData();
+    formData.append("email", "user@example.com");
+
+    const result = await loginUser(formData);
+    expect(result).toEqual({ error: "Email and password are required." });
+  });
+
+  it("should perform dummy bcrypt compare to prevent timing attacks when user is not found", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as never);
+
+    const formData = new FormData();
+    formData.append("email", "unknown@example.com");
+    formData.append("password", "SomePassword123!");
+
+    const result = await loginUser(formData);
+
+    expect(result).toEqual({ error: "Wrong credentials" });
+    expect(bcrypt.compare).toHaveBeenCalledWith("SomePassword123!", expect.any(String));
+  });
+
+  it("should return error when password does not match", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      id: "user-1",
+      email: "cleaner@example.com",
+      password: "real_hashed_password",
+      name: "Cleaner",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      bankAccountName: null,
+      bankBsb: null,
+      bankAccountNo: null,
+      payId: null,
+    });
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as never);
+
+    const formData = new FormData();
+    formData.append("email", "cleaner@example.com");
+    formData.append("password", "WrongPassword123!");
+
+    const result = await loginUser(formData);
+
+    expect(result).toEqual({ error: "Wrong credentials" });
+    expect(createSession).not.toHaveBeenCalled();
+  });
+
+  it("should create session and redirect on valid credentials", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      id: "user-1",
+      email: "cleaner@example.com",
+      password: "real_hashed_password",
+      name: "Cleaner",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      bankAccountName: null,
+      bankBsb: null,
+      bankAccountNo: null,
+      payId: null,
+    });
+    vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as never);
+
+    const formData = new FormData();
+    formData.append("email", "cleaner@example.com");
+    formData.append("password", "CorrectPassword123!");
+
+    await loginUser(formData);
+
+    expect(createSession).toHaveBeenCalledWith("user-1");
     expect(redirect).toHaveBeenCalledWith("/");
   });
 });

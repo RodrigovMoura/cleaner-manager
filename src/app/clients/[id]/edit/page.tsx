@@ -14,7 +14,7 @@ export default async function EditClientPage({ params }: PageProps) {
     notFound();
   }
 
-  // Serializa campos Decimal para tipos primitivos aceitos pelo Client Component
+  // Serialize Decimal fields to primitive types accepted by the Client Component
   const client = {
     ...rawClient,
     defaultPrice: rawClient.defaultPrice ? Number(rawClient.defaultPrice) : null,

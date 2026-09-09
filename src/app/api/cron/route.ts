@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAppointmentReminderEmailHtml, getOverduePaymentEmailHtml } from "@/lib/email-templates";
 
 export async function GET(request: NextRequest) {
-  // 1. Validar autenticação do Cron
+  // 1. Validate Cron authentication
+  const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || cronSecret.trim() === "" || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       const aptDate = new Date(apt.date);
       const daysUntil = Math.ceil((aptDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Dispara se o agendamento cair dentro da janela de dias configurada no cliente
+      // Trigger if the appointment falls within the reminder window configured for the client
       if (daysUntil > 0 && daysUntil <= apt.client.reminderDaysBefore) {
         const formattedDate = aptDate.toLocaleDateString("en-AU", {
           weekday: "long",
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
     for (const inv of pendingInvoices) {
       if (!inv.client.email) continue;
 
-      // Evita múltiplos disparos no mesmo intervalo (chase cooldown de 3 dias)
+      // Prevents multiple triggers within the same interval (3-day chase cooldown)
       const daysSinceLastChase = inv.lastChasedAt
         ? (now.getTime() - new Date(inv.lastChasedAt).getTime()) / (1000 * 60 * 60 * 24)
         : 999;

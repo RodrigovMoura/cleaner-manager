@@ -209,7 +209,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
       payId: invoice.paymentPayId || invoice.client.user.payId,
     };
 
-    // 1. Gera o PDF em Buffer
+    // 1. Generate the PDF as a Buffer
     const pdfBuffer = await generateInvoicePdfBuffer({
       invoice: {
         invoiceNumber: invoice.invoiceNumber,
@@ -236,7 +236,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
       year: "numeric",
     });
 
-    // 2. Dispara via Resend com o PDF anexado
+    // 2. Dispatch via Resend with the attached PDF
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: invoice.client.email,
@@ -264,7 +264,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
       };
     }
 
-    // 3. Atualiza registro com data de envio
+    // 3. Update record with sent date
     await prisma.invoice.update({
       where: { id: invoice.id },
       data: { sentAt: new Date() },

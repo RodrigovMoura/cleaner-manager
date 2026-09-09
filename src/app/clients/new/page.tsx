@@ -73,7 +73,7 @@ export default function NewClientPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Validação completa no cliente antes do envio
+    // Full client-side validation before submission
     const validation = validateClientData({
       name: formData.name,
       phone: formData.phone,

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "chave-secreta-padrao-mude-no-env");
+const jwtSecret = process.env.JWT_SECRET;
+const JWT_SECRET = jwtSecret ? new TextEncoder().encode(jwtSecret) : null;
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
@@ -13,7 +14,7 @@ export async function proxy(req: NextRequest) {
 
   let isAuthenticated = false;
 
-  if (token) {
+  if (token && JWT_SECRET) {
     try {
       await jwtVerify(token, JWT_SECRET);
       isAuthenticated = true;

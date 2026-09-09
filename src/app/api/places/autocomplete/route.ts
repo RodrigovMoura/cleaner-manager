@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
 interface GooglePlacePrediction {
   place_id: string;
@@ -12,6 +13,11 @@ interface GoogleAutocompleteResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const session = await getSession();
+  if (!session?.userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const input = searchParams.get("input");
   const sessionToken = searchParams.get("sessionToken");
@@ -30,7 +36,7 @@ export async function GET(request: NextRequest) {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", input.trim());
     url.searchParams.set("key", apiKey);
-    url.searchParams.set("components", "country:au"); // Restringe para a Austrália
+    url.searchParams.set("components", "country:au"); // Restrict to Australia
 
     if (sessionToken) {
       url.searchParams.set("sessiontoken", sessionToken);

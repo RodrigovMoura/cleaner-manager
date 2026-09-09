@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { getSession } from "@/actions/auth";
+import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { sanitizeInput, validateClientData, ClientErrors } from "@/lib/validation";
 
@@ -75,7 +75,7 @@ export async function updateClient(id: string, formData: FormData): Promise<Clie
     const phone = sanitizeInput(rawPhone);
     const address = sanitizeInput(rawAddress);
 
-    // Validação profunda dos dados
+    // In-depth data validation
     const validation = validateClientData({
       name,
       phone,
@@ -150,7 +150,7 @@ export async function createClient(formData: FormData): Promise<ClientActionResu
     const phone = sanitizeInput(rawPhone);
     const address = sanitizeInput(rawAddress);
 
-    // Validação profunda dos dados
+    // In-depth data validation
     const validation = validateClientData({
       name,
       phone,
