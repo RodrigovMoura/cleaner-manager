@@ -3,10 +3,11 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { resend, FROM_EMAIL } from "@/lib/email";
+import { resend, FROM_EMAIL, REPLY_TO_EMAIL } from "@/lib/email";
 import { getInvoiceEmailHtml } from "@/lib/email-templates";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
 import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
+import { COMPANY_NAME } from "@/lib/constants";
 
 // Helper function to generate unique invoice numbers (e.g. INV-2026-0042)
 async function generateInvoiceNumber(userId: string): Promise<string> {
@@ -250,7 +251,8 @@ export async function sendInvoiceEmail(invoiceId: string) {
     const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: invoice.client.email,
-      subject: `Tax Invoice ${invoice.invoiceNumber} - Cleaning Service`,
+      replyTo: REPLY_TO_EMAIL,
+      subject: `Tax Invoice ${invoice.invoiceNumber} - ${COMPANY_NAME}`,
       html: getInvoiceEmailHtml({
         clientName: invoice.client.name,
         invoiceNumber: invoice.invoiceNumber,

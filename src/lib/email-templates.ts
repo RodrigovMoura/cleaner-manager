@@ -1,4 +1,4 @@
-import { formatDuration } from "./date";
+import { COMPANY_NAME } from "./constants";
 
 export interface BankPaymentDetails {
   accountName?: string | null;
@@ -23,14 +23,15 @@ export function getInvoiceEmailHtml({
   amount,
   dueDateStr,
   bankDetails,
-  durationMinutes,
-  hourlyRate,
 }: InvoiceEmailProps): string {
   const hasBankDetails = Boolean(bankDetails?.bsb && bankDetails?.accountNumber);
 
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2937; line-height: 1.5;">
-      <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 16px;">Tax Invoice ${invoiceNumber}</h2>
+      <div style="margin-bottom: 16px;">
+        <span style="font-size: 13px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.05em;">${COMPANY_NAME}</span>
+        <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin: 4px 0 0 0;">Tax Invoice ${invoiceNumber}</h2>
+      </div>
       <p style="font-size: 15px; margin-bottom: 12px;">Hi ${clientName},</p>
       <p style="font-size: 15px; margin-bottom: 20px;">
         Thank you for your business. Please find attached your tax invoice for the recent cleaning service.
@@ -42,15 +43,6 @@ export function getInvoiceEmailHtml({
             <td style="color: #6b7280; padding: 4px 0;">Invoice Number:</td>
             <td style="font-weight: 600; text-align: right; color: #111827;">${invoiceNumber}</td>
           </tr>
-          ${
-            durationMinutes && hourlyRate
-              ? `
-          <tr>
-            <td style="color: #6b7280; padding: 4px 0;">Service Time:</td>
-            <td style="font-weight: 600; text-align: right; color: #111827;">${formatDuration(durationMinutes)} @ $${Number(hourlyRate).toFixed(2)}/hr</td>
-          </tr>`
-              : ""
-          }
           <tr>
             <td style="color: #6b7280; padding: 4px 0;">Amount Due:</td>
             <td style="font-weight: 700; text-align: right; color: #111827;">$${amount.toFixed(2)} AUD</td>

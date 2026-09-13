@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
-import { formatDuration } from "@/lib/date";
+import { COMPANY_NAME, COMPANY_SUBTITLE } from "@/lib/constants";
 
 const styles = StyleSheet.create({
   page: {
@@ -238,8 +238,8 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
         {/* Header */}
         <View style={styles.headerContainer}>
           <View>
-            <Text style={styles.companyTitle}>Cleaning Management</Text>
-            <Text style={styles.companySubtitle}>Residential Cleaning Services</Text>
+            <Text style={styles.companyTitle}>{COMPANY_NAME}</Text>
+            <Text style={styles.companySubtitle}>{COMPANY_SUBTITLE}</Text>
           </View>
           <View>
             <Text style={styles.invoiceBadge}>TAX INVOICE</Text>
@@ -279,14 +279,9 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
           <View style={styles.tableRow}>
             <View style={styles.colDescription}>
               <Text style={styles.colItemText}>Residential Cleaning Service ({serviceDate})</Text>
-              {invoice.durationMinutes && invoice.hourlyRate ? (
-                <Text style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>
-                  {formatDuration(invoice.durationMinutes)} @ ${Number(invoice.hourlyRate).toFixed(2)}/hr
-                </Text>
-              ) : null}
             </View>
             <View style={styles.colAmount}>
-              <Text style={styles.colItemText}>${Number(invoice.amount).toFixed(2)}</Text>
+              <Text style={styles.colItemText}>{`$${Number(invoice.amount).toFixed(2)}`}</Text>
             </View>
           </View>
         </View>
@@ -296,7 +291,7 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
           <View style={styles.totalsBox}>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total Due (AUD):</Text>
-              <Text style={styles.totalValue}>${Number(invoice.amount).toFixed(2)}</Text>
+              <Text style={styles.totalValue}>{`$${Number(invoice.amount).toFixed(2)}`}</Text>
             </View>
           </View>
         </View>

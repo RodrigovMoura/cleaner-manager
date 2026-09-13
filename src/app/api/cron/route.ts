@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { resend, FROM_EMAIL } from "@/lib/email";
+import { resend, FROM_EMAIL, REPLY_TO_EMAIL } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppointmentReminderEmailHtml, getOverduePaymentEmailHtml } from "@/lib/email-templates";
 import { resolveTimezone, formatInTimezone, formatTimeInTimezone } from "@/lib/timezone";
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
           to: apt.client.email,
+          replyTo: REPLY_TO_EMAIL,
           subject: `Upcoming Cleaning Reminder - ${formattedDate}`,
           html: getAppointmentReminderEmailHtml({
             clientName: apt.client.name,
@@ -133,6 +134,7 @@ export async function GET(request: NextRequest) {
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
           to: inv.client.email,
+          replyTo: REPLY_TO_EMAIL,
           subject: `Payment Reminder: Invoice ${inv.invoiceNumber}`,
           html: getOverduePaymentEmailHtml({
             clientName: inv.client.name,

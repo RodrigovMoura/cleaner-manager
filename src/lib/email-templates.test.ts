@@ -58,7 +58,7 @@ describe("email-templates", () => {
   });
 
   describe("getInvoiceEmailHtml", () => {
-    it("should include invoice details and service breakdown when duration and rate are provided", () => {
+    it("should include company name at the top, invoice details and only the final amount", () => {
       const html = getInvoiceEmailHtml({
         clientName: "Alice Cooper",
         invoiceNumber: "INV-2026-0010",
@@ -68,25 +68,34 @@ describe("email-templates", () => {
         hourlyRate: 50,
       });
 
+      expect(html).toContain("Ana's Cleaning Touch");
       expect(html).toContain("Alice Cooper");
       expect(html).toContain("INV-2026-0010");
       expect(html).toContain("$187.50 AUD");
       expect(html).toContain("20 Sep 2026");
-      expect(html).toContain("Service Time:");
-      expect(html).toContain("3 hrs 45 mins @ $50.00/hr");
+      // Hours worked and hourly rate should not appear
+      expect(html).not.toContain("Service Time:");
+      expect(html).not.toContain("@ $50.00/hr");
     });
 
-    it("should render clean invoice without breakdown when duration is omitted", () => {
+    it("should render clean invoice with bank details when provided", () => {
       const html = getInvoiceEmailHtml({
         clientName: "Alice Cooper",
         invoiceNumber: "INV-2026-0011",
         amount: 200,
         dueDateStr: "20 Sep 2026",
+        bankDetails: {
+          accountName: "Ana Silva",
+          bsb: "123-456",
+          accountNumber: "98765432",
+        },
       });
 
       expect(html).toContain("Alice Cooper");
       expect(html).toContain("INV-2026-0011");
       expect(html).toContain("$200.00 AUD");
+      expect(html).toContain("123-456");
+      expect(html).toContain("98765432");
       expect(html).not.toContain("Service Time:");
     });
   });
