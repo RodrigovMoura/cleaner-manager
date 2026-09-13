@@ -21,6 +21,8 @@ export default function NewClientPage() {
     email: "",
     phone: "",
     address: "",
+    preferredPaymentMethod: "BANK_TRANSFER",
+    hourlyRate: "50.00",
     enableAppointmentReminder: true,
     reminderDaysBefore: "1",
     enableInvoice: true,
@@ -81,6 +83,8 @@ export default function NewClientPage() {
       address: formData.address,
       reminderDaysBefore: formData.reminderDaysBefore,
       autoSendInvoice: formData.autoSendInvoice,
+      hourlyRate: formData.hourlyRate,
+      preferredPaymentMethod: formData.preferredPaymentMethod,
     });
 
     if (!validation.isValid) {
@@ -95,6 +99,8 @@ export default function NewClientPage() {
     submitData.append("email", formData.email.trim().toLowerCase());
     submitData.append("phone", formData.phone.trim());
     submitData.append("address", formData.address.trim());
+    submitData.append("preferredPaymentMethod", formData.preferredPaymentMethod);
+    submitData.append("hourlyRate", formData.hourlyRate);
 
     if (formData.enableAppointmentReminder) submitData.append("enableAppointmentReminder", "on");
     submitData.append("reminderDaysBefore", formData.reminderDaysBefore);
@@ -258,6 +264,72 @@ export default function NewClientPage() {
                 <p id='address-error' className='text-xs text-red-600 font-medium mt-1'>
                   {fieldErrors.address}
                 </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Preferences */}
+        <div className='bg-white p-5 sm:p-7 border border-gray-200 rounded-2xl shadow-xs space-y-5'>
+          <div>
+            <h2 className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>Payment Preferences</h2>
+            <p className='text-xs text-gray-400 mt-0.5'>Choose payment method and hourly rate for this client.</p>
+          </div>
+
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+            {/* Preferred Payment Method */}
+            <div className='space-y-1.5'>
+              <label
+                htmlFor='preferredPaymentMethod'
+                className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                Payment Method
+              </label>
+              <select
+                id='preferredPaymentMethod'
+                name='preferredPaymentMethod'
+                value={formData.preferredPaymentMethod}
+                onChange={(e) => handleInputChange("preferredPaymentMethod", e.target.value)}
+                className='w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all'>
+                <option value='BANK_TRANSFER'>Bank Transfer (Standard Invoice)</option>
+                <option value='CASH'>Cash Payment (No Invoice)</option>
+              </select>
+              <p className='text-[11px] text-gray-400'>
+                {formData.preferredPaymentMethod === "CASH"
+                  ? "Cash reminder included in pre-visit emails. No invoice created on completion."
+                  : "Tax invoice created and emailed upon completion."}
+              </p>
+            </div>
+
+            {/* Hourly Rate */}
+            <div className='space-y-1.5'>
+              <label htmlFor='hourlyRate' className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                Hourly Rate (AUD)
+              </label>
+              <div className='relative'>
+                <span className='absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-500 font-medium text-sm'>
+                  $
+                </span>
+                <input
+                  id='hourlyRate'
+                  name='hourlyRate'
+                  type='number'
+                  step='0.01'
+                  min='0'
+                  value={formData.hourlyRate}
+                  onChange={(e) => handleInputChange("hourlyRate", e.target.value)}
+                  placeholder='50.00'
+                  aria-invalid={Boolean(fieldErrors.hourlyRate)}
+                  className={`w-full pl-8 pr-3.5 py-2.5 bg-white border rounded-xl text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none transition-all ${
+                    fieldErrors.hourlyRate
+                      ? "border-red-400 focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                      : "border-gray-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                  }`}
+                />
+              </div>
+              {fieldErrors.hourlyRate ? (
+                <p className='text-xs text-red-600 font-medium mt-1'>{fieldErrors.hourlyRate}</p>
+              ) : (
+                <p className='text-[11px] text-gray-400'>Used to estimate cleaning hours on cash notices (standard: $50/h).</p>
               )}
             </div>
           </div>

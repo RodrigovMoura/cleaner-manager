@@ -1,7 +1,7 @@
 "use client";
 
 interface ClientContactActionsProps {
-  phone: string;
+  phone?: string | null;
   clientName?: string;
   compact?: boolean;
 }

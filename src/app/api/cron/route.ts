@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { resend, FROM_EMAIL } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppointmentReminderEmailHtml, getOverduePaymentEmailHtml } from "@/lib/email-templates";
+import { resolveTimezone, formatInTimezone, formatTimeInTimezone } from "@/lib/timezone";
 
 export async function GET(request: NextRequest) {
   // 1. Validate Cron authentication
@@ -33,28 +34,30 @@ export async function GET(request: NextRequest) {
         },
       },
       include: {
-        client: true,
+        client: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
     for (const apt of scheduledAppointments) {
       if (!apt.client.email) continue;
 
+      const userTz = resolveTimezone(apt.client.user?.timezone);
       const aptDate = new Date(apt.date);
       const daysUntil = Math.ceil((aptDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
       // Trigger if the appointment falls within the reminder window configured for the client
       if (daysUntil > 0 && daysUntil <= apt.client.reminderDaysBefore) {
-        const formattedDate = aptDate.toLocaleDateString("en-AU", {
+        const formattedDate = formatInTimezone(apt.date, userTz, {
           weekday: "long",
           day: "numeric",
           month: "long",
           year: "numeric",
         });
-        const formattedTime = aptDate.toLocaleTimeString("en-AU", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const formattedTime = formatTimeInTimezone(apt.date, userTz);
 
         const { error } = await resend.emails.send({
           from: FROM_EMAIL,
@@ -65,6 +68,9 @@ export async function GET(request: NextRequest) {
             formattedDate,
             formattedTime,
             address: apt.client.address || "Your scheduled address",
+            price: Number(apt.price),
+            paymentMethod: apt.paymentMethod ?? apt.client.preferredPaymentMethod,
+            hourlyRate: Number(apt.client.hourlyRate ?? 50),
           }),
         });
 
@@ -110,7 +116,8 @@ export async function GET(request: NextRequest) {
         : 999;
 
       if (daysSinceLastChase >= 3) {
-        const dueDateFormatted = new Date(inv.dueDate).toLocaleDateString("en-AU", {
+        const userTz = resolveTimezone(inv.client.user?.timezone);
+        const dueDateFormatted = formatInTimezone(inv.dueDate, userTz, {
           day: "numeric",
           month: "short",
           year: "numeric",

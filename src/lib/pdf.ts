@@ -15,6 +15,8 @@ interface GenerateInvoicePdfBufferProps {
       address: string;
     };
     status: string;
+    durationMinutes?: number | null;
+    hourlyRate?: number | string | null;
     appointment?: {
       date: Date | string;
     } | null;
@@ -22,6 +24,7 @@ interface GenerateInvoicePdfBufferProps {
     paymentBsb?: string | null;
     paymentAccountNo?: string | null;
     paymentPayId?: string | null;
+    timezone?: string | null;
   };
 }
 

@@ -39,6 +39,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     const formattedInvoice = {
       ...invoice,
       amount: Number(invoice.amount),
+      hourlyRate: invoice.hourlyRate ? Number(invoice.hourlyRate) : undefined,
+      timezone: invoice.client.user.timezone,
       paymentAccountName: invoice.paymentAccountName || invoice.client.user.bankAccountName,
       paymentBsb: invoice.paymentBsb || invoice.client.user.bankBsb,
       paymentAccountNo: invoice.paymentAccountNo || invoice.client.user.bankAccountNo,

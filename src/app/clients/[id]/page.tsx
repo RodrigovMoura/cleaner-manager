@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClientById } from "@/actions/client";
 import AppointmentActions from "@/app/schedule/AppointmentActions";
+import { resolveTimezone, formatInTimezone, formatTimeInTimezone } from "@/lib/timezone";
+import { formatDuration } from "@/lib/date";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -14,6 +16,8 @@ export default async function ClientDetailsPage({ params }: PageProps) {
   if (!client) {
     notFound();
   }
+
+  const timeZone = resolveTimezone(client.user?.timezone);
 
   // Priority: 1. SCHEDULED (asc) -> 2. COMPLETED (desc) -> 3. CANCELLED (desc)
   const statusPriority: Record<string, number> = {
@@ -78,6 +82,29 @@ export default async function ClientDetailsPage({ params }: PageProps) {
               <div className='pt-2.5'>
                 <span className='block text-gray-400 text-xs mb-0.5'>Property Address</span>
                 <span className='font-medium text-gray-900 leading-relaxed'>{client.address || "Not provided"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Preferences */}
+          <div className='bg-white p-5 sm:p-6 border border-gray-200 rounded-2xl shadow-xs space-y-4'>
+            <h2 className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>Payment Preferences</h2>
+            <div className='space-y-3 text-sm divide-y divide-gray-100'>
+              <div className='pt-1 first:pt-0 flex items-center justify-between'>
+                <span className='text-gray-500 text-xs'>Method</span>
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+                  client.preferredPaymentMethod === "CASH"
+                    ? "bg-amber-50 text-amber-700 border border-amber-100"
+                    : "bg-blue-50 text-blue-700 border border-blue-100"
+                }`}>
+                  {client.preferredPaymentMethod === "CASH" ? "💵 Cash" : "🏦 Bank Transfer"}
+                </span>
+              </div>
+              <div className='pt-2.5 flex items-center justify-between'>
+                <span className='text-gray-500 text-xs'>Hourly Rate</span>
+                <span className='font-semibold text-gray-900'>
+                  ${Number(client.hourlyRate ?? 50).toFixed(2)}/hr
+                </span>
               </div>
             </div>
           </div>
@@ -154,17 +181,13 @@ export default async function ClientDetailsPage({ params }: PageProps) {
             ) : (
               <div className='max-h-72 overflow-y-auto pr-1 space-y-2.5'>
                 {appointments.map((apt) => {
-                  const dateObj = new Date(apt.date);
-                  const formattedDate = dateObj.toLocaleDateString("en-AU", {
+                  const formattedDate = formatInTimezone(apt.date, timeZone, {
                     weekday: "short",
                     day: "numeric",
                     month: "short",
                     year: "numeric",
                   });
-                  const formattedTime = dateObj.toLocaleTimeString("en-AU", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+                  const formattedTime = formatTimeInTimezone(apt.date, timeZone);
 
                   return (
                     <div
@@ -189,12 +212,28 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                           }`}>
                           {apt.status}
                         </span>
+                        {apt.status === "COMPLETED" && apt.paymentMethod && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            apt.paymentMethod === "CASH"
+                              ? "bg-amber-50 text-amber-700 border border-amber-100"
+                              : "bg-blue-50 text-blue-700 border border-blue-100"
+                          }`}>
+                            {apt.paymentMethod === "CASH" ? "💵 Cash" : "🏦 Bank"}
+                          </span>
+                        )}
+                        {apt.durationMinutes ? (
+                          <span className='text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200'>
+                            ⏱️ {formatDuration(apt.durationMinutes)}
+                          </span>
+                        ) : null}
                         <AppointmentActions
                           appointmentId={apt.id}
                           currentStatus={apt.status}
                           clientName={client.name}
                           initialDate={apt.date}
                           initialPrice={Number(apt.price)}
+                          clientPreferredPaymentMethod={client.preferredPaymentMethod}
+                          clientHourlyRate={client.hourlyRate ? Number(client.hourlyRate) : 50}
                         />
                       </div>
                     </div>
@@ -225,8 +264,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
             ) : (
               <div className='max-h-72 overflow-y-auto pr-1 space-y-2.5'>
                 {invoices.map((inv) => {
-                  const dueDateObj = new Date(inv.dueDate);
-                  const formattedDueDate = dueDateObj.toLocaleDateString("en-AU", {
+                  const formattedDueDate = formatInTimezone(inv.dueDate, timeZone, {
                     day: "numeric",
                     month: "short",
                     year: "numeric",

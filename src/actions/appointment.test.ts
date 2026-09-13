@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { updateAppointment, getAppointmentById, createAppointment } from "./appointment";
+import { updateAppointment, getAppointmentById, createAppointment, updateAppointmentStatus } from "./appointment";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -320,6 +320,7 @@ describe("appointment actions", () => {
             clientId: "client-1",
             date: futureDate,
             price: 120,
+            durationMinutes: 144,
             status: AppointmentStatus.SCHEDULED,
           },
         ],
@@ -348,10 +349,10 @@ describe("appointment actions", () => {
 
       expect(prisma.appointment.createMany).toHaveBeenCalledWith({
         data: [
-          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
-          { clientId: "client-1", date: new Date("2026-11-08T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
-          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
-          { clientId: "client-1", date: new Date("2026-11-22T10:00:00.000Z"), price: 150, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 150, durationMinutes: 180, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-08T10:00:00.000Z"), price: 150, durationMinutes: 180, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 150, durationMinutes: 180, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-22T10:00:00.000Z"), price: 150, durationMinutes: 180, status: AppointmentStatus.SCHEDULED },
         ],
       });
     });
@@ -403,10 +404,176 @@ describe("appointment actions", () => {
 
       expect(prisma.appointment.createMany).toHaveBeenCalledWith({
         data: [
-          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
-          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
-          { clientId: "client-1", date: new Date("2026-11-29T10:00:00.000Z"), price: 120, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-01T10:00:00.000Z"), price: 120, durationMinutes: 144, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-15T10:00:00.000Z"), price: 120, durationMinutes: 144, status: AppointmentStatus.SCHEDULED },
+          { clientId: "client-1", date: new Date("2026-11-29T10:00:00.000Z"), price: 120, durationMinutes: 144, status: AppointmentStatus.SCHEDULED },
         ],
+      });
+    });
+  });
+
+  describe("updateAppointmentStatus", () => {
+    it("should complete appointment with CASH payment without generating invoice", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-1",
+        clientId: "client-1",
+        date: new Date("2026-11-01T10:00:00Z"),
+        price: new Prisma.Decimal(150),
+        durationMinutes: 180,
+        status: AppointmentStatus.SCHEDULED,
+        paymentMethod: null,
+        client: {
+          id: "client-1",
+          userId: "user-1",
+          enableInvoice: true,
+          preferredPaymentMethod: "CASH",
+        },
+        invoice: null,
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.update).mockResolvedValueOnce({} as never);
+
+      const result = await updateAppointmentStatus("apt-1", "COMPLETED", "CASH");
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("paid in cash");
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: "apt-1" },
+        data: {
+          status: "COMPLETED",
+          paymentMethod: "CASH",
+          price: mockAppointment.price,
+          durationMinutes: 180,
+        },
+      });
+      // Crucial: NO invoice generated for cash
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    it("should complete appointment with actual price and duration variance", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-variance",
+        clientId: "client-v",
+        date: new Date("2026-11-01T10:00:00Z"),
+        price: new Prisma.Decimal(200),
+        durationMinutes: 240,
+        status: AppointmentStatus.SCHEDULED,
+        paymentMethod: null,
+        client: {
+          id: "client-v",
+          userId: "user-1",
+          hourlyRate: new Prisma.Decimal(50),
+          enableInvoice: true,
+          preferredPaymentMethod: "CASH",
+        },
+        invoice: null,
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.update).mockResolvedValueOnce({} as never);
+
+      // Worked 3h 45m (225m) @ $50/hr = $187.50
+      const result = await updateAppointmentStatus("apt-variance", "COMPLETED", "CASH", 187.5, 225);
+
+      expect(result.success).toBe(true);
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: "apt-variance" },
+        data: {
+          status: "COMPLETED",
+          paymentMethod: "CASH",
+          price: new Prisma.Decimal(187.5),
+          durationMinutes: 225,
+        },
+      });
+    });
+
+    it("should complete appointment with BANK_TRANSFER and generate invoice if enabled", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-2",
+        clientId: "client-2",
+        date: new Date("2026-11-01T10:00:00Z"),
+        price: new Prisma.Decimal(180),
+        durationMinutes: 216,
+        status: AppointmentStatus.SCHEDULED,
+        paymentMethod: null,
+        client: {
+          id: "client-2",
+          userId: "user-1",
+          hourlyRate: new Prisma.Decimal(50),
+          enableInvoice: true,
+          autoSendInvoice: false,
+          preferredPaymentMethod: "BANK_TRANSFER",
+        },
+        invoice: null,
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.update).mockResolvedValueOnce({} as never);
+      vi.mocked(prisma.invoice.count).mockResolvedValueOnce(5);
+      vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+        bankAccountName: "Clean Pro",
+        bankBsb: "062-000",
+        bankAccountNo: "12345678",
+        payId: null,
+      } as never);
+      vi.mocked(prisma.invoice.create).mockResolvedValueOnce({ id: "inv-new-1" } as never);
+
+      const result = await updateAppointmentStatus("apt-2", "COMPLETED", "BANK_TRANSFER", 187.5, 225);
+
+      expect(result.success).toBe(true);
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: "apt-2" },
+        data: {
+          status: "COMPLETED",
+          paymentMethod: "BANK_TRANSFER",
+          price: new Prisma.Decimal(187.5),
+          durationMinutes: 225,
+        },
+      });
+      expect(prisma.invoice.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            appointmentId: "apt-2",
+            clientId: "client-2",
+            invoiceNumber: "INV-2026-0006",
+            amount: new Prisma.Decimal(187.5),
+            durationMinutes: 225,
+            hourlyRate: mockAppointment.client.hourlyRate,
+            status: "PENDING",
+          }),
+        }),
+      );
+    });
+
+    it("should reset paymentMethod to null when reopening to SCHEDULED", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-3",
+        clientId: "client-3",
+        date: new Date("2026-11-01T10:00:00Z"),
+        price: new Prisma.Decimal(120),
+        status: AppointmentStatus.COMPLETED,
+        paymentMethod: "CASH",
+        client: { id: "client-3", userId: "user-1" },
+        invoice: null,
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.update).mockResolvedValueOnce({} as never);
+
+      const result = await updateAppointmentStatus("apt-3", "SCHEDULED");
+
+      expect(result.success).toBe(true);
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: "apt-3" },
+        data: {
+          status: "SCHEDULED",
+          paymentMethod: null,
+        },
       });
     });
   });

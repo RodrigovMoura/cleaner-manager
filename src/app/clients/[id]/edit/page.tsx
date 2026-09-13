@@ -18,6 +18,8 @@ export default async function EditClientPage({ params }: PageProps) {
   const client = {
     ...rawClient,
     defaultPrice: rawClient.defaultPrice ? Number(rawClient.defaultPrice) : null,
+    hourlyRate: rawClient.hourlyRate ? Number(rawClient.hourlyRate) : 50.0,
+    preferredPaymentMethod: rawClient.preferredPaymentMethod,
     appointments:
       rawClient.appointments?.map((apt) => ({
         ...apt,

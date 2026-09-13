@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { formatToDateTimeLocal, startOfWeek, addDays, addMonths, isSameDay, getMonthGrid } from "./date";
+import { formatToDateTimeLocal, startOfWeek, addDays, addMonths, isSameDay, getMonthGrid, formatDuration } from "./date";
+
+describe("formatDuration", () => {
+  it("should return '0 mins' for 0, negative, null, or undefined minutes", () => {
+    expect(formatDuration(0)).toBe("0 mins");
+    expect(formatDuration(-10)).toBe("0 mins");
+    expect(formatDuration(null)).toBe("0 mins");
+    expect(formatDuration(undefined)).toBe("0 mins");
+  });
+
+  it("should format minutes only when less than 1 hour", () => {
+    expect(formatDuration(1)).toBe("1 min");
+    expect(formatDuration(15)).toBe("15 mins");
+    expect(formatDuration(45)).toBe("45 mins");
+  });
+
+  it("should format exact hours without minutes", () => {
+    expect(formatDuration(60)).toBe("1 hr");
+    expect(formatDuration(120)).toBe("2 hrs");
+    expect(formatDuration(240)).toBe("4 hrs");
+  });
+
+  it("should format combinations of hours and minutes", () => {
+    expect(formatDuration(75)).toBe("1 hr 15 mins");
+    expect(formatDuration(225)).toBe("3 hrs 45 mins");
+    expect(formatDuration(61)).toBe("1 hr 1 min");
+  });
+});
 
 describe("formatToDateTimeLocal", () => {
   it("should return empty string for null, undefined, or empty string", () => {

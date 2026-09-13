@@ -1,5 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
+import { formatDuration } from "@/lib/date";
 
 const styles = StyleSheet.create({
   page: {
@@ -188,6 +190,8 @@ interface InvoicePDFProps {
     dueDate: Date | string;
     createdAt: Date | string;
     status: string;
+    durationMinutes?: number | null;
+    hourlyRate?: number | string | null;
     client: {
       name: string;
       email?: string | null;
@@ -201,24 +205,27 @@ interface InvoicePDFProps {
     paymentBsb?: string | null;
     paymentAccountNo?: string | null;
     paymentPayId?: string | null;
+    timezone?: string | null;
   };
 }
 
 export default function InvoicePDF({ invoice }: InvoicePDFProps) {
-  const issueDate = new Date(invoice.createdAt).toLocaleDateString("en-AU", {
+  const timeZone = resolveTimezone(invoice.timezone);
+
+  const issueDate = formatInTimezone(invoice.createdAt, timeZone, {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 
-  const dueDate = new Date(invoice.dueDate).toLocaleDateString("en-AU", {
+  const dueDate = formatInTimezone(invoice.dueDate, timeZone, {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 
   const serviceDate = invoice.appointment
-    ? new Date(invoice.appointment.date).toLocaleDateString("en-AU", {
+    ? formatInTimezone(invoice.appointment.date, timeZone, {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -272,6 +279,11 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
           <View style={styles.tableRow}>
             <View style={styles.colDescription}>
               <Text style={styles.colItemText}>Residential Cleaning Service ({serviceDate})</Text>
+              {invoice.durationMinutes && invoice.hourlyRate ? (
+                <Text style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>
+                  {formatDuration(invoice.durationMinutes)} @ ${Number(invoice.hourlyRate).toFixed(2)}/hr
+                </Text>
+              ) : null}
             </View>
             <View style={styles.colAmount}>
               <Text style={styles.colItemText}>${Number(invoice.amount).toFixed(2)}</Text>

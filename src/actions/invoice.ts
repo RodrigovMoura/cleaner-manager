@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { resend, FROM_EMAIL } from "@/lib/email";
 import { getInvoiceEmailHtml } from "@/lib/email-templates";
 import { generateInvoicePdfBuffer } from "@/lib/pdf";
+import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
 
 // Helper function to generate unique invoice numbers (e.g. INV-2026-0042)
 async function generateInvoiceNumber(userId: string): Promise<string> {
@@ -77,6 +78,8 @@ export async function createInvoiceForAppointment(appointmentId: string) {
         amount: appointment.price,
         dueDate,
         status: "PENDING",
+        durationMinutes: appointment.durationMinutes,
+        hourlyRate: appointment.client.hourlyRate,
         paymentAccountName: user?.bankAccountName,
         paymentBsb: user?.bankBsb,
         paymentAccountNo: user?.bankAccountNo,
@@ -190,6 +193,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
             user: true,
           },
         },
+        appointment: true,
       },
     });
 
@@ -209,6 +213,8 @@ export async function sendInvoiceEmail(invoiceId: string) {
       payId: invoice.paymentPayId || invoice.client.user.payId,
     };
 
+    const userTz = resolveTimezone(invoice.client.user.timezone);
+
     // 1. Generate the PDF as a Buffer
     const pdfBuffer = await generateInvoicePdfBuffer({
       invoice: {
@@ -216,6 +222,9 @@ export async function sendInvoiceEmail(invoiceId: string) {
         amount: Number(invoice.amount),
         dueDate: invoice.dueDate,
         createdAt: invoice.createdAt,
+        durationMinutes: invoice.durationMinutes,
+        hourlyRate: invoice.hourlyRate ? Number(invoice.hourlyRate) : undefined,
+        appointment: invoice.appointment,
         client: {
           name: invoice.client.name,
           email: invoice.client.email,
@@ -223,6 +232,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
           address: invoice.client.address,
         },
         status: invoice.status,
+        timezone: userTz,
         paymentAccountName: paymentDetails.accountName,
         paymentBsb: paymentDetails.bsb,
         paymentAccountNo: paymentDetails.accountNumber,
@@ -230,7 +240,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
       },
     });
 
-    const dueDateFormatted = new Date(invoice.dueDate).toLocaleDateString("en-AU", {
+    const dueDateFormatted = formatInTimezone(invoice.dueDate, userTz, {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -247,6 +257,8 @@ export async function sendInvoiceEmail(invoiceId: string) {
         amount: Number(invoice.amount),
         dueDateStr: dueDateFormatted,
         bankDetails: paymentDetails,
+        durationMinutes: invoice.durationMinutes,
+        hourlyRate: invoice.hourlyRate ? Number(invoice.hourlyRate) : undefined,
       }),
       attachments: [
         {

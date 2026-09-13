@@ -109,6 +109,10 @@ describe("HomePage (Dashboard)", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([
       { amount: new Prisma.Decimal(500.0) },
     ] as never);
+    // 8. monthlyCashAppointments
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([
+      { price: new Prisma.Decimal(100.0) },
+    ] as never);
 
     const jsx = await HomePage();
     render(jsx);
@@ -118,25 +122,20 @@ describe("HomePage (Dashboard)", () => {
 
     // Verify KPI Cards
     expect(screen.getByText("Today's Jobs")).toBeInTheDocument();
-    expect(screen.getByText("This Week")).toBeInTheDocument();
     expect(screen.getByText("Earned this Month")).toBeInTheDocument();
-    expect(screen.getAllByText("$500.00").length).toBeGreaterThanOrEqual(1);
+    // 500 bank + 100 cash = 600 (appears in KPI card and Billing & Cash Flow section)
+    expect(screen.getAllByText("$600.00").length).toBeGreaterThanOrEqual(1);
 
-    // Verify Today's Agenda section
-    expect(screen.getByText("Today's Agenda")).toBeInTheDocument();
+    // Verify Today's Agenda contains Alice Johnson
     expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
-    expect(screen.getByText(/123 Ocean Street, Bondi/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /open maps/i })).toHaveAttribute(
-      "href",
-      expect.stringContaining("123%20Ocean%20Street%2C%20Bondi"),
-    );
+    expect(screen.getAllByText("$150.00").length).toBeGreaterThanOrEqual(1);
 
-    // Verify Client Notes are displayed
+    // Verify Client Notes are highlighted
     expect(screen.getByText(/Lockbox code is 9988/i)).toBeInTheDocument();
 
-    // Verify Contact Actions (Call, SMS, WhatsApp) for today's appointment
-    const callLinks = screen.getAllByRole("link", { name: /call/i });
-    expect(callLinks[0]).toHaveAttribute("href", "tel:0412345678");
+    // Verify Contact Actions for Alice Johnson
+    const phoneLinks = screen.getAllByRole("link", { name: /call/i });
+    expect(phoneLinks[0]).toHaveAttribute("href", "tel:0412345678");
 
     const smsLinks = screen.getAllByRole("link", { name: /sms/i });
     expect(smsLinks[0]).toHaveAttribute("href", "sms:0412345678");
@@ -157,11 +156,11 @@ describe("HomePage (Dashboard)", () => {
     vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-123" });
 
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ name: "Carlos" } as never);
-    // 2. todaysAppointments
+    // 1. todaysAppointments
     vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
-    // 3. thisWeekAppointments
+    // 2. thisWeekAppointments
     vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
-    // 4. upcomingAppointments (with next appointment tomorrow)
+    // 3. upcomingAppointments (with next appointment tomorrow)
     const tomorrowDate = new Date();
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     tomorrowDate.setHours(9, 0, 0, 0);
@@ -172,20 +171,52 @@ describe("HomePage (Dashboard)", () => {
         date: tomorrowDate,
         price: new Prisma.Decimal(130),
         status: "SCHEDULED",
-        client: { id: "c-1", name: "David Hasselhoff" },
+        client: { id: "c-1", name: "David Hasselhoff", phone: null, address: null },
       },
     ] as never);
-    // 5. overdueInvoices
+    // 4. overdueInvoices
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
-    // 6. pendingInvoices
+    // 5. pendingInvoices
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
-    // 7. monthlyPaidInvoices
+    // 6. monthlyPaidInvoices
     vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    // 7. monthlyCashAppointments
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
 
     const jsx = await HomePage();
     render(jsx);
 
     expect(screen.getByText(/No cleanings scheduled for today/i)).toBeInTheDocument();
     expect(screen.getAllByText(/David Hasselhoff/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should query today's appointments excluding cancelled and using timezone boundaries", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-perth" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      name: "Ana Luiza",
+      timezone: "Australia/Perth",
+    } as never);
+
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+
+    await HomePage();
+
+    // The first appointment.findMany call is todaysAppointments
+    const todayCallArgs = vi.mocked(prisma.appointment.findMany).mock.calls[0][0];
+    expect(todayCallArgs).toBeDefined();
+    expect(todayCallArgs?.where?.date).toBeDefined();
+    // Exclude cancelled cleanings
+    expect(todayCallArgs?.where?.status).toEqual({ in: ["SCHEDULED", "COMPLETED"] });
+    const dateFilter = todayCallArgs?.where?.date as { gte: Date; lte: Date };
+
+    // The difference between lte and gte should span exactly 24 hours (end of day - start of day)
+    const spanMs = dateFilter.lte.getTime() - dateFilter.gte.getTime();
+    expect(spanMs).toBe(24 * 60 * 60 * 1000 - 1);
   });
 });

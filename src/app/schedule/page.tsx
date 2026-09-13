@@ -26,10 +26,14 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
       date: typeof apt.date === "string" ? apt.date : apt.date.toISOString(),
       price: Number(apt.price),
       status: apt.status,
+      paymentMethod: apt.paymentMethod,
+      durationMinutes: apt.durationMinutes,
       client: {
         id: apt.client.id,
         name: apt.client.name,
         address: apt.client.address,
+        preferredPaymentMethod: apt.client.preferredPaymentMethod,
+        hourlyRate: apt.client.hourlyRate ? Number(apt.client.hourlyRate) : 50,
       },
     }));
 

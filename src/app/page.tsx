@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppointmentActions from "./schedule/AppointmentActions";
 import ClientContactActions from "@/components/ClientContactActions";
+import UpcomingCleaningsList from "@/components/UpcomingCleaningsList";
+import { formatDuration } from "@/lib/date";
+import {
+  resolveTimezone,
+  getZonedDayBounds,
+  getZonedWeekBounds,
+  getZonedMonthBounds,
+  formatInTimezone,
+  formatTimeInTimezone,
+  getGreetingInTimezone,
+  isTomorrowInTimezone,
+} from "@/lib/timezone";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -13,49 +26,52 @@ export default async function HomePage() {
     return null;
   }
 
-  // Time boundary definitions
+  let clientCookieTz: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    clientCookieTz = cookieStore.get("client_timezone")?.value;
+  } catch {
+    // Graceful fallback when cookies() is called outside of request context (e.g. in tests)
+  }
+
+  // 1. Current user details (for greeting and timezone)
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { name: true, timezone: true },
+  });
+
+  const timeZone = resolveTimezone(user?.timezone || clientCookieTz);
+
+  // Time boundary definitions in user's timezone
   const now = new Date();
-  const currentHour = now.getHours();
-  const greeting =
-    currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = getGreetingInTimezone(now, timeZone);
 
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  // Monday as start of week (Australian / ISO standard)
-  const dayOfWeek = now.getDay();
-  const diffToMonday = (dayOfWeek + 6) % 7;
-  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + 6, 23, 59, 59, 999);
+  const { startOfDay: startOfToday, endOfDay: endOfToday } = getZonedDayBounds(now, timeZone);
+  const { startOfWeek, endOfWeek } = getZonedWeekBounds(now, timeZone);
+  const { startOfMonth } = getZonedMonthBounds(now, timeZone);
 
   // Parallel queries for maximum performance
   const [
-    user,
     todaysAppointments,
     thisWeekAppointments,
     upcomingAppointments,
     overdueInvoices,
     pendingInvoices,
     monthlyPaidInvoices,
+    monthlyCashAppointments,
   ] = await Promise.all([
-    // 1. Current user details (for greeting)
-    prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { name: true },
-    }),
-
-    // 2. Today's cleanings with full client details
+    // 1. Today's cleanings with full client details (excluding CANCELLED)
     prisma.appointment.findMany({
       where: {
         client: { userId: session.userId },
         date: { gte: startOfToday, lte: endOfToday },
+        status: { in: ["SCHEDULED", "COMPLETED"] },
       },
       include: { client: true },
       orderBy: { date: "asc" },
     }),
 
-    // 3. This week's cleanings for weekly capacity & earnings
+    // 2. This week's cleanings for weekly capacity & earnings
     prisma.appointment.findMany({
       where: {
         client: { userId: session.userId },
@@ -65,7 +81,7 @@ export default async function HomePage() {
       select: { price: true, status: true },
     }),
 
-    // 4. Upcoming scheduled cleanings strictly after today
+    // 3. Upcoming scheduled cleanings strictly after today
     prisma.appointment.findMany({
       where: {
         client: { userId: session.userId },
@@ -74,10 +90,9 @@ export default async function HomePage() {
       },
       include: { client: true },
       orderBy: { date: "asc" },
-      take: 5,
     }),
 
-    // 5. Overdue invoices needing immediate follow-up
+    // 4. Overdue invoices needing immediate follow-up
     prisma.invoice.findMany({
       where: {
         client: { userId: session.userId },
@@ -88,7 +103,7 @@ export default async function HomePage() {
       take: 5,
     }),
 
-    // 6. Pending invoices
+    // 5. Pending invoices
     prisma.invoice.findMany({
       where: {
         client: { userId: session.userId },
@@ -97,7 +112,7 @@ export default async function HomePage() {
       select: { amount: true },
     }),
 
-    // 7. Invoices paid this month
+    // 6. Invoices paid this month (Bank Transfer)
     prisma.invoice.findMany({
       where: {
         client: { userId: session.userId },
@@ -106,21 +121,34 @@ export default async function HomePage() {
       },
       select: { amount: true },
     }),
+
+    // 7. Cleanings completed this month with cash payment
+    prisma.appointment.findMany({
+      where: {
+        client: { userId: session.userId },
+        status: "COMPLETED",
+        paymentMethod: "CASH",
+        date: { gte: startOfMonth },
+      },
+      select: { price: true },
+    }),
   ]);
 
   // Operational & Financial calculations
-  const completedTodayCount = todaysAppointments.filter((apt) => apt.status === "COMPLETED").length;
-  const scheduledTodayCount = todaysAppointments.filter((apt) => apt.status === "SCHEDULED").length;
+  const completedTodayCount = (todaysAppointments || []).filter((apt) => apt.status === "COMPLETED").length;
+  const scheduledTodayCount = (todaysAppointments || []).filter((apt) => apt.status === "SCHEDULED").length;
 
-  const thisWeekEarnings = thisWeekAppointments.reduce((acc, apt) => acc + Number(apt.price), 0);
-  const totalMonthEarnings = monthlyPaidInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
-  const totalOverdueAmount = overdueInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
+  const thisWeekEarnings = (thisWeekAppointments || []).reduce((acc, apt) => acc + Number(apt.price), 0);
+  const monthlyBankEarnings = (monthlyPaidInvoices || []).reduce((acc, inv) => acc + Number(inv.amount), 0);
+  const monthlyCashEarnings = (monthlyCashAppointments || []).reduce((acc, apt) => acc + Number(apt.price), 0);
+  const totalMonthEarnings = monthlyBankEarnings + monthlyCashEarnings;
+  const totalOverdueAmount = (overdueInvoices || []).reduce((acc, inv) => acc + Number(inv.amount), 0);
   const totalPendingAmount =
-    pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0) + totalOverdueAmount;
+    (pendingInvoices || []).reduce((acc, inv) => acc + Number(inv.amount), 0) + totalOverdueAmount;
 
   const firstName = user?.name ? user.name.split(" ")[0] : "Cleaner";
 
-  const formattedCurrentDate = now.toLocaleDateString("en-AU", {
+  const formattedCurrentDate = formatInTimezone(now, timeZone, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -130,16 +158,12 @@ export default async function HomePage() {
   // Next job info if today has no jobs
   const nextJob = upcomingAppointments.length > 0 ? upcomingAppointments[0] : null;
   const nextJobDateObj = nextJob ? new Date(nextJob.date) : null;
-  const isTomorrow =
-    nextJobDateObj &&
-    nextJobDateObj.getDate() === now.getDate() + 1 &&
-    nextJobDateObj.getMonth() === now.getMonth() &&
-    nextJobDateObj.getFullYear() === now.getFullYear();
+  const isTomorrow = nextJobDateObj ? isTomorrowInTimezone(now, nextJobDateObj, timeZone) : false;
 
   const formattedNextJobDate = nextJobDateObj
     ? isTomorrow
-      ? `Tomorrow at ${nextJobDateObj.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}`
-      : `${nextJobDateObj.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })} at ${nextJobDateObj.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}`
+      ? `Tomorrow at ${formatTimeInTimezone(nextJobDateObj, timeZone)}`
+      : `${formatInTimezone(nextJobDateObj, timeZone, { weekday: "short", day: "numeric", month: "short" })} at ${formatTimeInTimezone(nextJobDateObj, timeZone)}`
     : null;
 
   return (
@@ -211,7 +235,11 @@ export default async function HomePage() {
               ${totalMonthEarnings.toFixed(2)}
             </span>
           </div>
-          <p className='text-[11px] text-gray-500 mt-1 truncate'>paid invoices</p>
+          <p className='text-[11px] text-gray-500 mt-1 truncate'>
+            {monthlyCashEarnings > 0
+              ? `$${monthlyBankEarnings.toFixed(0)} bank • $${monthlyCashEarnings.toFixed(0)} cash`
+              : `${monthlyPaidInvoices.length} paid invoices`}
+          </p>
         </div>
 
         {/* Overdue / Pending Invoices */}
@@ -285,11 +313,7 @@ export default async function HomePage() {
           /* Today's Jobs List: Rich, actionable cards designed for mobile */
           <div className='space-y-3.5'>
             {todaysAppointments.map((apt) => {
-              const dateObj = new Date(apt.date);
-              const formattedTime = dateObj.toLocaleTimeString("en-AU", {
-                hour: "2-digit",
-                minute: "2-digit",
-              });
+              const formattedTime = formatTimeInTimezone(apt.date, timeZone);
               const isCompleted = apt.status === "COMPLETED";
 
               const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -306,7 +330,7 @@ export default async function HomePage() {
                   }`}>
                   {/* Top Bar: Time, Status, and Price */}
                   <div className='flex items-center justify-between gap-2 flex-wrap'>
-                    <div className='flex items-center gap-2'>
+                    <div className='flex items-center gap-2 flex-wrap'>
                       <span className='font-bold text-sm text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg'>
                         ⏰ {formattedTime}
                       </span>
@@ -320,6 +344,21 @@ export default async function HomePage() {
                         }`}>
                         {apt.status}
                       </span>
+                      {isCompleted && apt.paymentMethod && (
+                        <span
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                            apt.paymentMethod === "CASH"
+                              ? "bg-amber-50 text-amber-700 border-amber-100"
+                              : "bg-blue-50 text-blue-700 border-blue-100"
+                          }`}>
+                          {apt.paymentMethod === "CASH" ? "💵 Cash" : "🏦 Bank"}
+                        </span>
+                      )}
+                      {apt.durationMinutes ? (
+                        <span className='text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200'>
+                          ⏱️ {formatDuration(apt.durationMinutes)}
+                        </span>
+                      ) : null}
                     </div>
 
                     <span className='text-base sm:text-lg font-bold text-gray-900'>
@@ -392,6 +431,8 @@ export default async function HomePage() {
                       clientName={apt.client.name}
                       initialDate={apt.date}
                       initialPrice={Number(apt.price)}
+                      clientPreferredPaymentMethod={apt.client.preferredPaymentMethod}
+                      clientHourlyRate={apt.client.hourlyRate ? Number(apt.client.hourlyRate) : 50}
                     />
                   </div>
                 </div>
@@ -417,60 +458,21 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          {upcomingAppointments.length === 0 ? (
-            <div className='bg-white border border-dashed border-gray-200 rounded-2xl p-6 text-center text-xs sm:text-sm text-gray-500'>
-              No further cleanings scheduled this week.
-            </div>
-          ) : (
-            <div className='space-y-2.5'>
-              {upcomingAppointments.map((apt) => {
-                const dateObj = new Date(apt.date);
-                const formattedDate = dateObj.toLocaleDateString("en-AU", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                });
-                const formattedTime = dateObj.toLocaleTimeString("en-AU", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
-
-                return (
-                  <div
-                    key={apt.id}
-                    className='p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-gray-300 transition-all'>
-                    <div className='space-y-1 min-w-0 flex-1'>
-                      <div className='flex items-center gap-2 flex-wrap'>
-                        <Link
-                          href={`/clients/${apt.client.id}`}
-                          className='font-bold text-sm text-gray-900 hover:text-blue-600 hover:underline truncate'>
-                          {apt.client.name}
-                        </Link>
-                        <span className='text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100/60'>
-                          {formattedDate} • {formattedTime}
-                        </span>
-                      </div>
-                      {apt.client.address && (
-                        <p className='text-xs text-gray-500 truncate'>📍 {apt.client.address}</p>
-                      )}
-                    </div>
-
-                    <div className='flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100'>
-                      <span className='text-sm font-bold text-gray-900'>
-                        ${Number(apt.price).toFixed(2)}
-                      </span>
-                      <ClientContactActions phone={apt.client.phone} clientName={apt.client.name} compact />
-                      <Link
-                        href={`/schedule/${apt.id}/edit`}
-                        className='px-2.5 py-1 text-xs font-semibold text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-gray-200 rounded-lg transition-colors'>
-                        Edit
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <UpcomingCleaningsList
+            appointments={upcomingAppointments.map((apt) => ({
+              id: apt.id,
+              date: typeof apt.date === "string" ? apt.date : apt.date.toISOString(),
+              price: Number(apt.price),
+              client: {
+                id: apt.client.id,
+                name: apt.client.name,
+                phone: apt.client.phone,
+                address: apt.client.address,
+              },
+            }))}
+            timeZone={timeZone}
+            pageSize={6}
+          />
         </div>
 
         {/* Right: Financial & Collection Priorities */}
@@ -550,14 +552,28 @@ export default async function HomePage() {
             )}
 
             {/* Monthly Summary Breakdown */}
-            <div className='border-t border-gray-100 pt-3 space-y-2'>
+            <div className='border-t border-gray-100 pt-3 space-y-2.5'>
               <div className='flex justify-between text-xs py-0.5 text-gray-600'>
                 <span>Total Outstanding</span>
                 <span className='font-semibold text-gray-900'>${totalPendingAmount.toFixed(2)}</span>
               </div>
               <div className='flex justify-between text-xs py-0.5 text-gray-600'>
                 <span>Collected this Month</span>
-                <span className='font-semibold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
+                <span className='font-bold text-emerald-600'>${totalMonthEarnings.toFixed(2)}</span>
+              </div>
+
+              {/* Compact Bank vs Cash Breakdown */}
+              <div className='grid grid-cols-2 gap-2 pt-1'>
+                <div className='bg-blue-50/70 border border-blue-100/80 rounded-xl p-2.5'>
+                  <span className='text-[10px] font-bold text-blue-700 uppercase tracking-wider block'>🏦 Bank Transfer</span>
+                  <span className='text-sm font-bold text-blue-900'>${monthlyBankEarnings.toFixed(2)}</span>
+                  <span className='text-[10px] text-blue-600/80 block mt-0.5'>{monthlyPaidInvoices.length} paid</span>
+                </div>
+                <div className='bg-amber-50/70 border border-amber-100/80 rounded-xl p-2.5'>
+                  <span className='text-[10px] font-bold text-amber-700 uppercase tracking-wider block'>💵 Cash Collected</span>
+                  <span className='text-sm font-bold text-amber-900'>${monthlyCashEarnings.toFixed(2)}</span>
+                  <span className='text-[10px] text-amber-600/80 block mt-0.5'>{monthlyCashAppointments.length} cleanings</span>
+                </div>
               </div>
             </div>
 

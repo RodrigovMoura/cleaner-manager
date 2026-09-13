@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useSyncExternalStore } from "react";
 import { updateBankDetails } from "@/actions/settings";
 import { BankDetailsErrors } from "@/lib/validation";
+import { AUSTRALIAN_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
 
 interface BankDetailsData {
   name: string;
@@ -11,11 +12,14 @@ interface BankDetailsData {
   bankBsb: string | null;
   bankAccountNo: string | null;
   payId: string | null;
+  timezone?: string | null;
 }
 
 interface SettingsFormProps {
   initialData: BankDetailsData | null;
 }
+
+const emptySubscribe = () => () => {};
 
 export default function SettingsForm({ initialData }: SettingsFormProps) {
   const [formData, setFormData] = useState({
@@ -23,7 +27,20 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
     bankBsb: initialData?.bankBsb || "",
     bankAccountNo: initialData?.bankAccountNo || "",
     payId: initialData?.payId || "",
+    timezone: initialData?.timezone || DEFAULT_TIMEZONE,
   });
+
+  const browserTz = useSyncExternalStore(
+    emptySubscribe,
+    () => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+      } catch {
+        return null;
+      }
+    },
+    () => null,
+  );
 
   const [errors, setErrors] = useState<BankDetailsErrors>({});
   const [isPending, startTransition] = useTransition();
@@ -61,6 +78,7 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
     submitData.append("bankBsb", formData.bankBsb);
     submitData.append("bankAccountNo", formData.bankAccountNo);
     submitData.append("payId", formData.payId);
+    submitData.append("timezone", formData.timezone);
 
     startTransition(async () => {
       try {
@@ -208,6 +226,59 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
             </p>
           </div>
 
+          {/* Timezone & Regional Preferences */}
+          <div className='pt-4 border-t border-gray-100 space-y-3'>
+            <div>
+              <h3 className='text-sm font-bold text-gray-900'>Timezone & Regional Schedule</h3>
+              <p className='text-xs text-gray-500 mt-0.5'>
+                Configures the operational timezone for today&apos;s agenda, calendar views, and automated client notifications.
+              </p>
+            </div>
+
+            <div className='space-y-1.5'>
+              <label htmlFor='timezone' className='block text-xs font-bold text-gray-700 uppercase tracking-wider'>
+                Business Timezone <span className='text-red-500'>*</span>
+              </label>
+              <select
+                id='timezone'
+                value={formData.timezone}
+                onChange={(e) => setFormData((prev) => ({ ...prev, timezone: e.target.value }))}
+                className='w-full px-3.5 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900'>
+                {AUSTRALIAN_TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Timezone Verification Badge */}
+            {browserTz && (
+              <div
+                className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                  browserTz === formData.timezone
+                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                    : "bg-blue-50/70 border-blue-200 text-blue-800"
+                }`}>
+                <div className='flex items-center gap-1.5'>
+                  <span>{browserTz === formData.timezone ? "✓" : "🌐"}</span>
+                  <span>
+                    Detected browser timezone: <strong>{browserTz}</strong>
+                    {browserTz === formData.timezone && " (Active & Verified)"}
+                  </span>
+                </div>
+                {browserTz !== formData.timezone && (
+                  <button
+                    type='button'
+                    onClick={() => setFormData((prev) => ({ ...prev, timezone: browserTz }))}
+                    className='text-xs font-bold underline hover:no-underline text-blue-700 cursor-pointer shrink-0'>
+                    Use browser timezone
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className='pt-3 border-t border-gray-100 flex items-center justify-end'>
             <button
               type='submit'
@@ -216,12 +287,12 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
               {isPending ? (
                 <>
                   <span className='animate-spin text-xs'>⏳</span>
-                  <span>Saving details...</span>
+                  <span>Saving settings...</span>
                 </>
               ) : (
                 <>
                   <span>💾</span>
-                  <span>Save Bank Details</span>
+                  <span>Save Settings</span>
                 </>
               )}
             </button>

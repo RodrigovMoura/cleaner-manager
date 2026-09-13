@@ -20,6 +20,8 @@ model User {
   bankAccountNo   String?
   payId           String?
 
+  timezone        String   @default("Australia/Perth")
+
   clients Client[]
 }
 
@@ -34,6 +36,10 @@ model Client {
   address      String
   notes        String?
   defaultPrice Decimal
+
+  // PAYMENT PREFERENCES
+  preferredPaymentMethod PaymentMethod @default(BANK_TRANSFER)
+  hourlyRate             Decimal       @default(50.00)
 
   // INDIVIDUAL TOGGLES AND PREFERENCES
   enableAppointmentReminder Boolean @default(true)
@@ -60,12 +66,21 @@ model Appointment {
   price  Decimal
   status AppointmentStatus @default(SCHEDULED)
 
+  // Payment method recorded when completed (or chosen)
+  paymentMethod   PaymentMethod?
+  durationMinutes Int?
+
   reminderSentAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   invoice Invoice?
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
 }
 
 enum AppointmentStatus {
@@ -85,6 +100,10 @@ model Invoice {
   amount        Decimal
   dueDate       DateTime
   status        PaymentStatus @default(PENDING)
+
+  // SERVICE DETAILS SNAPSHOT
+  durationMinutes Int?
+  hourlyRate      Decimal?
 
   // SNAPSHOT OF BANK DETAILS CAPTURED AT TIME OF ISSUANCE
   paymentAccountName String?

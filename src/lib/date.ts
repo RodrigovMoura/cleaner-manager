@@ -103,3 +103,20 @@ export function getMonthGrid(year: number, month: number, weekStartsOn: 0 | 1 = 
   return days;
 }
 
+/**
+ * Formats a duration in minutes into human-readable hours and minutes (e.g. "3 hrs 45 mins", "2 hrs", "45 mins").
+ */
+export function formatDuration(minutes?: number | null): string {
+  if (!minutes || minutes <= 0) return "0 mins";
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+
+  if (hours > 0 && mins > 0) {
+    return `${hours} ${hours === 1 ? "hr" : "hrs"} ${mins} ${mins === 1 ? "min" : "mins"}`;
+  }
+  if (hours > 0) {
+    return `${hours} ${hours === 1 ? "hr" : "hrs"}`;
+  }
+  return `${mins} ${mins === 1 ? "min" : "mins"}`;
+}
+

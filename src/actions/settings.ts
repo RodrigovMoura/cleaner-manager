@@ -9,6 +9,7 @@ import {
   validateBankDetails,
   BankDetailsErrors,
 } from "@/lib/validation";
+import { isValidTimezone } from "@/lib/timezone";
 
 export type SettingsActionResult = {
   success: boolean;
@@ -31,6 +32,7 @@ export async function getUserBankDetails() {
       bankBsb: true,
       bankAccountNo: true,
       payId: true,
+      timezone: true,
     },
   });
 
@@ -48,11 +50,13 @@ export async function updateBankDetails(formData: FormData): Promise<SettingsAct
     const rawBsb = formData.get("bankBsb") as string;
     const rawAccountNo = formData.get("bankAccountNo") as string;
     const rawPayId = formData.get("payId") as string;
+    const rawTimezone = formData.get("timezone") as string;
 
     const bankAccountName = sanitizeInput(rawAccountName);
     const bankBsb = sanitizeInput(rawBsb);
     const bankAccountNo = sanitizeInput(rawAccountNo);
     const payId = sanitizeInput(rawPayId);
+    const timezone = rawTimezone && isValidTimezone(rawTimezone) ? rawTimezone : undefined;
 
     const validation = validateBankDetails({
       bankAccountName,
@@ -73,18 +77,31 @@ export async function updateBankDetails(formData: FormData): Promise<SettingsAct
     const formattedBsbVal = bankBsb ? formatBsb(bankBsb) : null;
     const formattedAccountNo = bankAccountNo ? bankAccountNo.replace(/[\s-]/g, "") : null;
 
+    const updateData: {
+      bankAccountName: string | null;
+      bankBsb: string | null;
+      bankAccountNo: string | null;
+      payId: string | null;
+      timezone?: string;
+    } = {
+      bankAccountName: bankAccountName || null,
+      bankBsb: formattedBsbVal,
+      bankAccountNo: formattedAccountNo,
+      payId: payId || null,
+    };
+
+    if (timezone) {
+      updateData.timezone = timezone;
+    }
+
     await prisma.user.update({
       where: { id: session.userId },
-      data: {
-        bankAccountName: bankAccountName || null,
-        bankBsb: formattedBsbVal,
-        bankAccountNo: formattedAccountNo,
-        payId: payId || null,
-      },
+      data: updateData,
     });
 
     revalidatePath("/settings");
     revalidatePath("/invoices");
+    revalidatePath("/");
 
     return {
       success: true,

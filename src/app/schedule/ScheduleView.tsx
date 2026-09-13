@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppointmentActions from "./AppointmentActions";
+import { formatDuration } from "@/lib/date";
 
 export interface SerializedAppointment {
   id: string;
@@ -11,10 +12,14 @@ export interface SerializedAppointment {
   date: string;
   price: number;
   status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  paymentMethod?: "BANK_TRANSFER" | "CASH" | string | null;
+  durationMinutes?: number | null;
   client: {
     id: string;
     name: string;
     address: string | null;
+    preferredPaymentMethod?: "BANK_TRANSFER" | "CASH" | string | null;
+    hourlyRate?: number | null;
   };
 }
 
@@ -230,6 +235,21 @@ export default function ScheduleView({
                         }`}>
                         {apt.status}
                       </span>
+                      {isCompleted && apt.paymentMethod && (
+                        <span
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                            apt.paymentMethod === "CASH"
+                              ? "bg-amber-50 text-amber-700 border-amber-100"
+                              : "bg-blue-50 text-blue-700 border-blue-100"
+                          }`}>
+                          {apt.paymentMethod === "CASH" ? "💵 Cash" : "🏦 Bank"}
+                        </span>
+                      )}
+                      {apt.durationMinutes ? (
+                        <span className='text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200'>
+                          ⏱️ {formatDuration(apt.durationMinutes)}
+                        </span>
+                      ) : null}
                     </div>
 
                     <p className='text-xs text-gray-500'>
@@ -250,6 +270,8 @@ export default function ScheduleView({
                       clientName={apt.client.name}
                       initialDate={apt.date}
                       initialPrice={apt.price}
+                      clientPreferredPaymentMethod={apt.client.preferredPaymentMethod || "BANK_TRANSFER"}
+                      clientHourlyRate={apt.client.hourlyRate ? Number(apt.client.hourlyRate) : 50}
                     />
                   </div>
                 </div>

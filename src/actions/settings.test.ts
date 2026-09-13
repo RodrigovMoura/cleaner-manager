@@ -58,6 +58,7 @@ describe("settings actions", () => {
           bankBsb: true,
           bankAccountNo: true,
           payId: true,
+          timezone: true,
         },
       });
     });

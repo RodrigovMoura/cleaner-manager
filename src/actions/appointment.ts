@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { sendInvoiceEmail } from "./invoice";
-import { Prisma, AppointmentStatus } from "@prisma/client";
+import { Prisma, AppointmentStatus, PaymentMethod } from "@prisma/client";
 import { addMonths } from "@/lib/date";
 
 export async function createAppointment(formData: FormData) {
@@ -31,7 +31,7 @@ export async function createAppointment(formData: FormData) {
       return { success: false, message: "Invalid date format." };
     }
 
-    if (baseDate.getTime() < Date.now()) {
+    if (baseDate.getTime() < Date.now() - 5 * 60 * 1000) {
       return { success: false, message: "Appointment date cannot be in the past." };
     }
 
@@ -69,10 +69,14 @@ export async function createAppointment(formData: FormData) {
         appointmentDate = new Date(baseDate);
       }
 
+      const clientHourlyRate = client.hourlyRate ? Number(client.hourlyRate) : 50;
+      const estimatedDuration = clientHourlyRate > 0 ? Math.round((Number(price) / clientHourlyRate) * 60) : undefined;
+
       appointmentsData.push({
         clientId,
         date: appointmentDate,
         price,
+        durationMinutes: estimatedDuration,
         status: AppointmentStatus.SCHEDULED,
       });
     }
@@ -138,6 +142,9 @@ export async function getAppointments(view: "upcoming" | "history" = "upcoming")
 export async function updateAppointmentStatus(
   appointmentId: string,
   newStatus: "SCHEDULED" | "COMPLETED" | "CANCELLED",
+  paymentMethod?: "BANK_TRANSFER" | "CASH",
+  actualPrice?: number,
+  durationMinutes?: number,
 ) {
   try {
     const session = await getSession();
@@ -162,14 +169,45 @@ export async function updateAppointmentStatus(
       return { success: false, message: "Appointment not found or unauthorized." };
     }
 
-    // Update appointment status
+    const effectivePaymentMethod =
+      newStatus === "COMPLETED"
+        ? (paymentMethod ?? (appointment.client.preferredPaymentMethod as PaymentMethod) ?? "BANK_TRANSFER")
+        : null;
+
+    const finalPrice =
+      newStatus === "COMPLETED" && actualPrice !== undefined && !isNaN(actualPrice) && actualPrice >= 0
+        ? new Prisma.Decimal(actualPrice)
+        : appointment.price;
+
+    const finalDurationMinutes =
+      newStatus === "COMPLETED" && durationMinutes !== undefined && !isNaN(durationMinutes) && durationMinutes >= 0
+        ? durationMinutes
+        : appointment.durationMinutes;
+
+    // Update appointment status, price, duration, and payment method
     await prisma.appointment.update({
       where: { id: appointmentId },
-      data: { status: newStatus },
+      data: {
+        status: newStatus,
+        ...(newStatus === "COMPLETED"
+          ? {
+              paymentMethod: effectivePaymentMethod,
+              price: finalPrice,
+              durationMinutes: finalDurationMinutes,
+            }
+          : newStatus === "SCHEDULED"
+            ? { paymentMethod: null }
+            : {}),
+      },
     });
 
-    // Auto-generate invoice if completed, client requires invoice, and none exists yet
-    if (newStatus === "COMPLETED" && appointment.client.enableInvoice && !appointment.invoice) {
+    // Auto-generate invoice ONLY if completed by BANK_TRANSFER, client requires invoice, and none exists yet
+    if (
+      newStatus === "COMPLETED" &&
+      effectivePaymentMethod === "BANK_TRANSFER" &&
+      appointment.client.enableInvoice &&
+      !appointment.invoice
+    ) {
       const currentYear = new Date().getFullYear();
       const count = await prisma.invoice.count({
         where: { client: { userId: session.userId } },
@@ -194,9 +232,11 @@ export async function updateAppointmentStatus(
           appointmentId: appointment.id,
           clientId: appointment.clientId,
           invoiceNumber,
-          amount: appointment.price,
+          amount: finalPrice,
           dueDate,
           status: "PENDING",
+          durationMinutes: finalDurationMinutes,
+          hourlyRate: appointment.client.hourlyRate,
           paymentAccountName: user?.bankAccountName,
           paymentBsb: user?.bankBsb,
           paymentAccountNo: user?.bankAccountNo,
@@ -209,6 +249,21 @@ export async function updateAppointmentStatus(
         // Asynchronous internal call for immediate dispatch
         await sendInvoiceEmail(createdInvoice.id);
       }
+    } else if (
+      newStatus === "COMPLETED" &&
+      effectivePaymentMethod === "BANK_TRANSFER" &&
+      appointment.invoice &&
+      appointment.invoice.status === "PENDING"
+    ) {
+      // Keep existing pending invoice synced with adjusted price and duration
+      await prisma.invoice.update({
+        where: { id: appointment.invoice.id },
+        data: {
+          amount: finalPrice,
+          durationMinutes: finalDurationMinutes,
+          hourlyRate: appointment.client.hourlyRate,
+        },
+      });
     }
 
     revalidatePath("/schedule");
@@ -216,7 +271,13 @@ export async function updateAppointmentStatus(
     revalidatePath(`/clients/${appointment.clientId}`);
     revalidatePath("/");
 
-    return { success: true, message: `Appointment marked as ${newStatus.toLowerCase()}!` };
+    return {
+      success: true,
+      message:
+        newStatus === "COMPLETED" && effectivePaymentMethod === "CASH"
+          ? "Cleaning marked as completed (paid in cash, no invoice needed)!"
+          : `Appointment marked as ${newStatus.toLowerCase()}!`,
+    };
   } catch (error) {
     console.error("Failed to update appointment status:", error);
     return { success: false, message: "An error occurred while updating status." };

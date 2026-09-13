@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import Navbar from "@/components/Navbar";
+import TimezoneDetector from "@/components/TimezoneDetector";
 import { Geist, Geist_Mono } from "next/font/google";
 
 const geistSans = Geist({
@@ -52,6 +53,7 @@ export default function RootLayout({
   return (
     <html lang='en' className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className='bg-gray-50 text-gray-900 antialiased min-h-screen flex flex-col font-sans'>
+        <TimezoneDetector />
         <Navbar />
         <main className='flex-1 w-full'>{children}</main>
       </body>

@@ -47,6 +47,11 @@ export async function getClientById(id: string) {
           createdAt: "desc",
         },
       },
+      user: {
+        select: {
+          timezone: true,
+        },
+      },
     },
   });
 }
@@ -63,6 +68,12 @@ export async function updateClient(id: string, formData: FormData): Promise<Clie
     const rawEmail = formData.get("email") as string;
     const rawPhone = formData.get("phone") as string;
     const rawAddress = formData.get("address") as string;
+
+    const rawPaymentMethod = (formData.get("preferredPaymentMethod") as string) || "BANK_TRANSFER";
+    const preferredPaymentMethod = rawPaymentMethod === "CASH" ? "CASH" : "BANK_TRANSFER";
+    const rawHourlyRate = formData.get("hourlyRate") as string;
+    const parsedHourlyRate = rawHourlyRate ? parseFloat(rawHourlyRate) : 50.0;
+    const hourlyRate = isNaN(parsedHourlyRate) || parsedHourlyRate <= 0 ? 50.0 : parsedHourlyRate;
 
     const enableAppointmentReminder = formData.get("enableAppointmentReminder") === "on";
     const reminderDaysBefore = parseInt((formData.get("reminderDaysBefore") as string) || "1", 10);
@@ -84,6 +95,8 @@ export async function updateClient(id: string, formData: FormData): Promise<Clie
       reminderDaysBefore,
       enableInvoice,
       autoSendInvoice,
+      hourlyRate: rawHourlyRate || "50",
+      preferredPaymentMethod,
     });
 
     if (!validation.isValid) {
@@ -106,6 +119,8 @@ export async function updateClient(id: string, formData: FormData): Promise<Clie
         phone,
         address,
         defaultPrice: 0,
+        preferredPaymentMethod,
+        hourlyRate,
         enableAppointmentReminder,
         reminderDaysBefore,
         enableInvoice,
@@ -138,6 +153,12 @@ export async function createClient(formData: FormData): Promise<ClientActionResu
     const rawPhone = formData.get("phone") as string;
     const rawAddress = formData.get("address") as string;
 
+    const rawPaymentMethod = (formData.get("preferredPaymentMethod") as string) || "BANK_TRANSFER";
+    const preferredPaymentMethod = rawPaymentMethod === "CASH" ? "CASH" : "BANK_TRANSFER";
+    const rawHourlyRate = formData.get("hourlyRate") as string;
+    const parsedHourlyRate = rawHourlyRate ? parseFloat(rawHourlyRate) : 50.0;
+    const hourlyRate = isNaN(parsedHourlyRate) || parsedHourlyRate <= 0 ? 50.0 : parsedHourlyRate;
+
     // Toggle values from checkboxes
     const enableAppointmentReminder = formData.get("enableAppointmentReminder") === "on";
     const reminderDaysBefore = parseInt((formData.get("reminderDaysBefore") as string) || "1", 10);
@@ -159,6 +180,8 @@ export async function createClient(formData: FormData): Promise<ClientActionResu
       reminderDaysBefore,
       enableInvoice,
       autoSendInvoice,
+      hourlyRate: rawHourlyRate || "50",
+      preferredPaymentMethod,
     });
 
     if (!validation.isValid) {
@@ -178,6 +201,8 @@ export async function createClient(formData: FormData): Promise<ClientActionResu
         phone,
         address,
         defaultPrice: 0,
+        preferredPaymentMethod,
+        hourlyRate,
         enableAppointmentReminder,
         reminderDaysBefore,
         enableInvoice,

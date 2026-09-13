@@ -1,8 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getInvoices } from "@/actions/invoice";
 import InvoiceActions from "./InvoiceActions";
+import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
 
 export default async function InvoicesPage() {
+  let timeZone = "Australia/Perth";
+  try {
+    const cookieStore = await cookies();
+    timeZone = resolveTimezone(cookieStore.get("client_timezone")?.value);
+  } catch {
+    // Graceful fallback
+  }
+
   const invoices = await getInvoices();
 
   // Financial summary calculations
@@ -64,8 +74,7 @@ export default async function InvoicesPage() {
         <div className='bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden'>
           <div className='divide-y divide-gray-100'>
             {invoices.map((inv) => {
-              const dueDateObj = new Date(inv.dueDate);
-              const formattedDueDate = dueDateObj.toLocaleDateString("en-AU", {
+              const formattedDueDate = formatInTimezone(inv.dueDate, timeZone, {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
@@ -101,7 +110,7 @@ export default async function InvoicesPage() {
                       Due: <span className='font-semibold text-gray-700'>{formattedDueDate}</span>
                       {inv.paidAt && (
                         <span className='text-emerald-600 ml-2 font-medium'>
-                          (Paid on {new Date(inv.paidAt).toLocaleDateString("en-AU")})
+                          (Paid on {formatInTimezone(inv.paidAt, timeZone, { day: "numeric", month: "short", year: "numeric" })})
                         </span>
                       )}
                     </p>

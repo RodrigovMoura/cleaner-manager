@@ -38,6 +38,8 @@ export interface ClientErrors {
   address?: string;
   reminderDaysBefore?: string;
   autoSendInvoice?: string;
+  hourlyRate?: string;
+  preferredPaymentMethod?: string;
   form?: string;
 }
 
@@ -327,6 +329,8 @@ export function validateClientData(data: {
   autoSendInvoice?: unknown;
   enableAppointmentReminder?: unknown;
   enablePaymentReminder?: unknown;
+  hourlyRate?: unknown;
+  preferredPaymentMethod?: unknown;
 }): { isValid: boolean; errors: ClientErrors } {
   const errors: ClientErrors = {};
 
@@ -366,6 +370,26 @@ export function validateClientData(data: {
     const days = parseInt(String(data.reminderDaysBefore), 10);
     if (isNaN(days) || days < 1 || days > 7) {
       errors.reminderDaysBefore = "Reminder days must be between 1 and 7.";
+    }
+  }
+
+  // Hourly rate validation
+  if (data.hourlyRate !== undefined && data.hourlyRate !== null && String(data.hourlyRate).trim() !== "") {
+    const rate = parseFloat(String(data.hourlyRate));
+    if (isNaN(rate) || rate <= 0) {
+      errors.hourlyRate = "Hourly rate must be a valid positive number.";
+    }
+  }
+
+  // Preferred payment method validation
+  if (
+    data.preferredPaymentMethod !== undefined &&
+    data.preferredPaymentMethod !== null &&
+    String(data.preferredPaymentMethod).trim() !== ""
+  ) {
+    const method = String(data.preferredPaymentMethod).trim().toUpperCase();
+    if (method !== "BANK_TRANSFER" && method !== "CASH") {
+      errors.preferredPaymentMethod = "Invalid payment method selected.";
     }
   }
 
