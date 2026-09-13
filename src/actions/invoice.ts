@@ -206,12 +206,12 @@ export async function sendInvoiceEmail(invoiceId: string) {
       return { success: false, message: "Client does not have an email address configured." };
     }
 
-    // Resolve payment details with snapshot first, then fallback to current user settings
+    // Resolve payment details: prefer current user settings, fallback to snapshot
     const paymentDetails = {
-      accountName: invoice.paymentAccountName || invoice.client.user.bankAccountName,
-      bsb: invoice.paymentBsb || invoice.client.user.bankBsb,
-      accountNumber: invoice.paymentAccountNo || invoice.client.user.bankAccountNo,
-      payId: invoice.paymentPayId || invoice.client.user.payId,
+      accountName: invoice.client.user.bankAccountName || invoice.paymentAccountName,
+      bsb: invoice.client.user.bankBsb || invoice.paymentBsb,
+      accountNumber: invoice.client.user.bankAccountNo || invoice.paymentAccountNo,
+      payId: invoice.client.user.payId || invoice.paymentPayId,
     };
 
     const userTz = resolveTimezone(invoice.client.user.timezone);

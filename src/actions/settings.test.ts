@@ -10,6 +10,9 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    invoice: {
+      updateMany: vi.fn(),
+    },
   },
 }));
 
@@ -121,6 +124,18 @@ describe("settings actions", () => {
           bankBsb: "062-000",
           bankAccountNo: "12345678",
           payId: "rodrigo@clean.com",
+        },
+      });
+      expect(prisma.invoice.updateMany).toHaveBeenCalledWith({
+        where: {
+          client: { userId: "u1" },
+          status: "PENDING",
+        },
+        data: {
+          paymentAccountName: "Rodrigo Cleaning Services",
+          paymentBsb: "062-000",
+          paymentAccountNo: "12345678",
+          paymentPayId: "rodrigo@clean.com",
         },
       });
       expect(revalidatePath).toHaveBeenCalledWith("/settings");

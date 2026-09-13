@@ -125,10 +125,10 @@ export async function GET(request: NextRequest) {
         });
 
         const paymentDetails = {
-          accountName: inv.paymentAccountName || inv.client.user.bankAccountName,
-          bsb: inv.paymentBsb || inv.client.user.bankBsb,
-          accountNumber: inv.paymentAccountNo || inv.client.user.bankAccountNo,
-          payId: inv.paymentPayId || inv.client.user.payId,
+          accountName: inv.client.user.bankAccountName || inv.paymentAccountName,
+          bsb: inv.client.user.bankBsb || inv.paymentBsb,
+          accountNumber: inv.client.user.bankAccountNo || inv.paymentAccountNo,
+          payId: inv.client.user.payId || inv.paymentPayId,
         };
 
         const { error } = await resend.emails.send({

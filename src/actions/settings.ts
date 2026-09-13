@@ -99,13 +99,27 @@ export async function updateBankDetails(formData: FormData): Promise<SettingsAct
       data: updateData,
     });
 
+    // Synchronize pending invoices with updated bank details
+    await prisma.invoice.updateMany({
+      where: {
+        client: { userId: session.userId },
+        status: "PENDING",
+      },
+      data: {
+        paymentAccountName: updateData.bankAccountName,
+        paymentBsb: updateData.bankBsb,
+        paymentAccountNo: updateData.bankAccountNo,
+        paymentPayId: updateData.payId,
+      },
+    });
+
     revalidatePath("/settings");
     revalidatePath("/invoices");
     revalidatePath("/");
 
     return {
       success: true,
-      message: "Bank details saved successfully! They will now appear on all new invoices.",
+      message: "Bank details saved successfully! They will now appear on your invoices.",
     };
   } catch (error) {
     console.error("Failed to update bank details:", error);

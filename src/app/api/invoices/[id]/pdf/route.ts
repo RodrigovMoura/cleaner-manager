@@ -41,10 +41,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       amount: Number(invoice.amount),
       hourlyRate: invoice.hourlyRate ? Number(invoice.hourlyRate) : undefined,
       timezone: invoice.client.user.timezone,
-      paymentAccountName: invoice.paymentAccountName || invoice.client.user.bankAccountName,
-      paymentBsb: invoice.paymentBsb || invoice.client.user.bankBsb,
-      paymentAccountNo: invoice.paymentAccountNo || invoice.client.user.bankAccountNo,
-      paymentPayId: invoice.paymentPayId || invoice.client.user.payId,
+      paymentAccountName: invoice.client.user.bankAccountName || invoice.paymentAccountName,
+      paymentBsb: invoice.client.user.bankBsb || invoice.paymentBsb,
+      paymentAccountNo: invoice.client.user.bankAccountNo || invoice.paymentAccountNo,
+      paymentPayId: invoice.client.user.payId || invoice.paymentPayId,
     };
 
     // Cast element as any to satisfy @react-pdf/renderer's strict DocumentProps requirement
