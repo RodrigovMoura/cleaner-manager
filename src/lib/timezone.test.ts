@@ -6,6 +6,7 @@ import {
   getZonedWeekBounds,
   getZonedMonthBounds,
   isTomorrowInTimezone,
+  getCalendarDaysDiffInTimezone,
   formatInTimezone,
   formatTimeInTimezone,
   getGreetingInTimezone,
@@ -102,5 +103,32 @@ describe("timezone utilities", () => {
     expect(isTomorrowInTimezone(today, sundayApt, "Australia/Perth")).toBe(true);
     expect(isTomorrowInTimezone(today, mondayApt, "Australia/Perth")).toBe(false);
     expect(isTomorrowInTimezone(today, saturdaySameDayApt, "Australia/Perth")).toBe(false);
+  });
+
+  it("should accurately calculate calendar days difference regardless of appointment hour", () => {
+    // Cron runs at 08:00 AM AWST on Monday (2026-09-14 00:00:00 UTC)
+    const cronRunMonday8AM = new Date("2026-09-14T00:00:00.000Z");
+
+    // Tuesday appointments at different times
+    const tuesdayMorningApt = new Date("2026-09-14T22:00:00.000Z"); // Tuesday 06:00 AM AWST
+    const tuesdayMiddayApt = new Date("2026-09-15T04:00:00.000Z");  // Tuesday 12:00 PM AWST
+    const tuesdayEveningApt = new Date("2026-09-15T10:00:00.000Z"); // Tuesday 06:00 PM AWST
+
+    // All Tuesday appointments are exactly 1 calendar day away from Monday in Perth
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, tuesdayMorningApt, "Australia/Perth")).toBe(1);
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, tuesdayMiddayApt, "Australia/Perth")).toBe(1);
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, tuesdayEveningApt, "Australia/Perth")).toBe(1);
+
+    // Monday same day appointment (e.g. 2:00 PM) -> 0 calendar days
+    const mondayAfternoonApt = new Date("2026-09-14T06:00:00.000Z");
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, mondayAfternoonApt, "Australia/Perth")).toBe(0);
+
+    // Wednesday appointment -> 2 calendar days
+    const wednesdayApt = new Date("2026-09-16T01:00:00.000Z");
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, wednesdayApt, "Australia/Perth")).toBe(2);
+
+    // Sunday past appointment -> -1 calendar day
+    const sundayApt = new Date("2026-09-13T01:00:00.000Z");
+    expect(getCalendarDaysDiffInTimezone(cronRunMonday8AM, sundayApt, "Australia/Perth")).toBe(-1);
   });
 });

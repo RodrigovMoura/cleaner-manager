@@ -62,6 +62,7 @@ describe("settings actions", () => {
           bankAccountNo: true,
           payId: true,
           timezone: true,
+          homeAddress: true,
         },
       });
     });
@@ -105,7 +106,7 @@ describe("settings actions", () => {
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it("should successfully update and format bank details", async () => {
+    it("should successfully update and format bank details and home address", async () => {
       vi.mocked(getSession).mockResolvedValueOnce({ userId: "u1" });
       vi.mocked(prisma.user.update).mockResolvedValueOnce({} as never);
 
@@ -114,6 +115,7 @@ describe("settings actions", () => {
       formData.append("bankBsb", "062000"); // will be formatted to 062-000
       formData.append("bankAccountNo", "1234 5678"); // spaces will be stripped
       formData.append("payId", "rodrigo@clean.com");
+      formData.append("homeAddress", "14 Example Way, Girrawheen WA 6064");
 
       const res = await updateBankDetails(formData);
       expect(res.success).toBe(true);
@@ -124,6 +126,7 @@ describe("settings actions", () => {
           bankBsb: "062-000",
           bankAccountNo: "12345678",
           payId: "rodrigo@clean.com",
+          homeAddress: "14 Example Way, Girrawheen WA 6064",
         },
       });
       expect(prisma.invoice.updateMany).toHaveBeenCalledWith({

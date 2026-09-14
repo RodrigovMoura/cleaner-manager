@@ -2,7 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { resend, FROM_EMAIL, REPLY_TO_EMAIL } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppointmentReminderEmailHtml, getOverduePaymentEmailHtml } from "@/lib/email-templates";
-import { resolveTimezone, formatInTimezone, formatTimeInTimezone } from "@/lib/timezone";
+import {
+  resolveTimezone,
+  formatInTimezone,
+  formatTimeInTimezone,
+  getCalendarDaysDiffInTimezone,
+} from "@/lib/timezone";
 
 export async function GET(request: NextRequest) {
   // 1. Validate Cron authentication
@@ -47,7 +52,7 @@ export async function GET(request: NextRequest) {
 
       const userTz = resolveTimezone(apt.client.user?.timezone);
       const aptDate = new Date(apt.date);
-      const daysUntil = Math.ceil((aptDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const daysUntil = getCalendarDaysDiffInTimezone(now, aptDate, userTz);
 
       // Trigger if the appointment falls within the reminder window configured for the client
       if (daysUntil > 0 && daysUntil <= apt.client.reminderDaysBefore) {

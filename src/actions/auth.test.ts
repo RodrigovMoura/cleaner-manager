@@ -108,6 +108,7 @@ describe("registerUser server action", () => {
       bankAccountNo: null,
       payId: null,
       timezone: "Australia/Perth",
+      homeAddress: null,
     });
 
     const formData = new FormData();
@@ -139,6 +140,7 @@ describe("registerUser server action", () => {
       bankAccountNo: null,
       payId: null,
       timezone: "Australia/Perth",
+      homeAddress: null,
     });
 
     const formData = new FormData();
@@ -204,6 +206,7 @@ describe("loginUser server action", () => {
       bankAccountNo: null,
       payId: null,
       timezone: "Australia/Perth",
+      homeAddress: null,
     });
     vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as never);
 
@@ -230,6 +233,7 @@ describe("loginUser server action", () => {
       bankAccountNo: null,
       payId: null,
       timezone: "Australia/Perth",
+      homeAddress: null,
     });
     vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as never);
 

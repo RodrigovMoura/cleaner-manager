@@ -219,4 +219,144 @@ describe("HomePage (Dashboard)", () => {
     const spanMs = dateFilter.lte.getTime() - dateFilter.gte.getTime();
     expect(spanMs).toBe(24 * 60 * 60 * 1000 - 1);
   });
+
+  it("should display 'Time to head home!' card with Google Maps button when all today's jobs are completed", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-done" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      name: "Rodrigo Moura",
+      timezone: "Australia/Perth",
+      homeAddress: "14 Example Way, Girrawheen WA 6064",
+    } as never);
+
+    const todayDate = new Date();
+    const mockCompletedAppointment = {
+      id: "apt-completed-1",
+      clientId: "client-1",
+      date: todayDate,
+      price: new Prisma.Decimal(120.0),
+      status: "COMPLETED" as const,
+      paymentMethod: "BANK_TRANSFER" as const,
+      durationMinutes: 120,
+      reminderSentAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      client: {
+        id: "client-1",
+        name: "Maria Silva",
+        phone: "0411 222 333",
+        address: "50 Queen St, Perth",
+        notes: null,
+      },
+    };
+
+    // 1. todaysAppointments (all completed)
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([mockCompletedAppointment] as never);
+    // 2. thisWeekAppointments
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([{ price: new Prisma.Decimal(120.0), status: "COMPLETED" }] as never);
+    // 3. upcomingAppointments
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    // 4. overdueInvoices
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    // 5. pendingInvoices
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    // 6. monthlyPaidInvoices
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    // 7. monthlyCashAppointments
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+
+    const jsx = await HomePage();
+    render(jsx);
+
+    // Verify 'Time to head home!' card is visible
+    expect(screen.getByTestId("time-to-go-home-card")).toBeInTheDocument();
+    expect(screen.getByText(/Time to head home!/i)).toBeInTheDocument();
+    expect(screen.getByText(/14 Example Way, Girrawheen WA 6064/i)).toBeInTheDocument();
+
+    // Verify Google Maps button
+    const mapsLink = screen.getByRole("link", { name: /Navigate Home \(Google Maps\)/i });
+    expect(mapsLink).toBeInTheDocument();
+    expect(mapsLink).toHaveAttribute(
+      "href",
+      `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent("14 Example Way, Girrawheen WA 6064")}`
+    );
+    expect(mapsLink).toHaveAttribute("target", "_blank");
+  });
+
+  it("should not display 'Time to head home!' card when there are still pending scheduled cleanings today", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-working" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      name: "Rodrigo Moura",
+      timezone: "Australia/Perth",
+      homeAddress: "14 Example Way, Girrawheen WA 6064",
+    } as never);
+
+    const todayDate = new Date();
+    const mockAppointments = [
+      {
+        id: "apt-1",
+        clientId: "c-1",
+        date: todayDate,
+        price: new Prisma.Decimal(100.0),
+        status: "COMPLETED" as const,
+        client: { id: "c-1", name: "Client Done", phone: "111", address: "A" },
+      },
+      {
+        id: "apt-2",
+        clientId: "c-2",
+        date: todayDate,
+        price: new Prisma.Decimal(120.0),
+        status: "SCHEDULED" as const,
+        client: { id: "c-2", name: "Client Pending", phone: "222", address: "B" },
+      },
+    ];
+
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce(mockAppointments as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+
+    const jsx = await HomePage();
+    render(jsx);
+
+    expect(screen.queryByTestId("time-to-go-home-card")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Time to head home!/i)).not.toBeInTheDocument();
+  });
+
+  it("should prompt user to configure address if all jobs are finished but homeAddress is not set", async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-no-address" });
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
+      name: "Rodrigo Moura",
+      timezone: "Australia/Perth",
+      homeAddress: null,
+    } as never);
+
+    const todayDate = new Date();
+    const mockCompletedAppointment = {
+      id: "apt-completed-1",
+      clientId: "client-1",
+      date: todayDate,
+      price: new Prisma.Decimal(120.0),
+      status: "COMPLETED" as const,
+      client: { id: "client-1", name: "Maria Silva", phone: "0411 222 333", address: "50 Queen St" },
+    };
+
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([mockCompletedAppointment] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce([] as never);
+
+    const jsx = await HomePage();
+    render(jsx);
+
+    expect(screen.getByTestId("time-to-go-home-card")).toBeInTheDocument();
+    expect(screen.getByText(/Set Home Address/i)).toBeInTheDocument();
+    const settingsLink = screen.getByRole("link", { name: /Set Home Address/i });
+    expect(settingsLink).toHaveAttribute("href", "/settings");
+  });
 });

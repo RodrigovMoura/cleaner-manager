@@ -34,10 +34,10 @@ export default async function HomePage() {
     // Graceful fallback when cookies() is called outside of request context (e.g. in tests)
   }
 
-  // 1. Current user details (for greeting and timezone)
+  // 1. Current user details (for greeting, timezone, and home address)
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { name: true, timezone: true },
+    select: { name: true, timezone: true, homeAddress: true },
   });
 
   const timeZone = resolveTimezone(user?.timezone || clientCookieTz);
@@ -137,6 +137,7 @@ export default async function HomePage() {
   // Operational & Financial calculations
   const completedTodayCount = (todaysAppointments || []).filter((apt) => apt.status === "COMPLETED").length;
   const scheduledTodayCount = (todaysAppointments || []).filter((apt) => apt.status === "SCHEDULED").length;
+  const allJobsCompletedToday = todaysAppointments.length > 0 && scheduledTodayCount === 0;
 
   const thisWeekEarnings = (thisWeekAppointments || []).reduce((acc, apt) => acc + Number(apt.price), 0);
   const monthlyBankEarnings = (monthlyPaidInvoices || []).reduce((acc, inv) => acc + Number(inv.amount), 0);
@@ -289,6 +290,64 @@ export default async function HomePage() {
             Full Schedule →
           </Link>
         </div>
+
+        {/* TIME TO HEAD HOME CARD */}
+        {allJobsCompletedToday && (
+          <div
+            data-testid='time-to-go-home-card'
+            className='bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-800 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-emerald-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300'>
+            <div className='space-y-1.5'>
+              <div className='inline-flex items-center gap-2 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full text-xs font-semibold'>
+                <span>🎉</span>
+                <span>All cleanings completed!</span>
+              </div>
+              <h3 className='text-lg sm:text-xl font-bold tracking-tight flex items-center gap-2'>
+                <span>Time to head home!</span>
+                <span className='text-sm sm:text-base font-normal text-emerald-100'>🏠</span>
+              </h3>
+              <p className='text-xs sm:text-sm text-emerald-50 max-w-xl leading-relaxed'>
+                {user?.homeAddress ? (
+                  <>
+                    You&apos;ve completed all <strong>{todaysAppointments.length}</strong> cleanings scheduled for today. Great work, rest up and have a safe trip home!
+                  </>
+                ) : (
+                  <>
+                    You&apos;ve completed all cleanings scheduled for today! Add your residential address in Settings to get 1-tap directions home.
+                  </>
+                )}
+              </p>
+              {user?.homeAddress && (
+                <div className='inline-flex items-center gap-1.5 text-xs text-emerald-100/90 font-medium bg-black/15 px-3 py-1 rounded-lg mt-1 max-w-full'>
+                  <span className='shrink-0'>📍</span>
+                  <span className='truncate'>{user.homeAddress}</span>
+                </div>
+              )}
+            </div>
+
+            <div className='flex items-center gap-2.5 shrink-0 pt-1 md:pt-0'>
+              {user?.homeAddress ? (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(user.homeAddress)}`}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='w-full md:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-xs sm:text-sm font-bold text-emerald-950 bg-white hover:bg-emerald-50 active:bg-emerald-100 rounded-xl shadow-md hover:shadow-lg transition-all'>
+                  <span>🚗</span>
+                  <span>Navigate Home (Google Maps)</span>
+                  <svg className='w-4 h-4 text-emerald-700' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2.5' d='M14 5l7 7m0 0l-7 7m7-7H3' />
+                  </svg>
+                </a>
+              ) : (
+                <Link
+                  href='/settings'
+                  className='w-full md:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold text-emerald-950 bg-white hover:bg-emerald-50 rounded-xl shadow-md transition-all'>
+                  <span>🏠</span>
+                  <span>Set Home Address</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         {todaysAppointments.length === 0 ? (
           /* Empty State for Today: Positive, informative */

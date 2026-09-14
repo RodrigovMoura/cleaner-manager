@@ -21,6 +21,7 @@ model User {
   payId           String?
 
   timezone        String   @default("Australia/Perth")
+  homeAddress     String?
 
   clients Client[]
 }

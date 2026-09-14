@@ -10,6 +10,8 @@ interface AddressAutocompleteProps {
   hasError?: boolean;
   name?: string;
   required?: boolean;
+  label?: string;
+  placeholder?: string;
 }
 
 interface Prediction {
@@ -37,6 +39,8 @@ export default function AddressAutocomplete({
   hasError = false,
   name = "address",
   required = true,
+  label = "Property Address",
+  placeholder,
 }: AddressAutocompleteProps) {
   const isControlled = controlledValue !== undefined;
   const initialAddress = isControlled ? controlledValue : defaultValue;
@@ -219,7 +223,7 @@ export default function AddressAutocomplete({
     <div className='space-y-1.5 relative z-30' ref={containerRef}>
       <div className='flex items-center justify-between'>
         <label htmlFor={name} className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
-          Property Address {required && <span className='text-red-500'>*</span>}
+          {label} {required && <span className='text-red-500'>*</span>}
         </label>
         <button
           type='button'
@@ -250,7 +254,10 @@ export default function AddressAutocomplete({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder={isManualMode ? "e.g., 14 Example Way, Girrawheen WA 6064" : "Start typing street address..."}
+          placeholder={
+            placeholder ||
+            (isManualMode ? "e.g., 14 Example Way, Girrawheen WA 6064" : "Start typing street address...")
+          }
           autoComplete='off'
           role='combobox'
           aria-autocomplete='list'

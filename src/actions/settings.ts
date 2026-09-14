@@ -33,6 +33,7 @@ export async function getUserBankDetails() {
       bankAccountNo: true,
       payId: true,
       timezone: true,
+      homeAddress: true,
     },
   });
 
@@ -51,12 +52,14 @@ export async function updateBankDetails(formData: FormData): Promise<SettingsAct
     const rawAccountNo = formData.get("bankAccountNo") as string;
     const rawPayId = formData.get("payId") as string;
     const rawTimezone = formData.get("timezone") as string;
+    const rawHomeAddress = formData.get("homeAddress") as string;
 
     const bankAccountName = sanitizeInput(rawAccountName);
     const bankBsb = sanitizeInput(rawBsb);
     const bankAccountNo = sanitizeInput(rawAccountNo);
     const payId = sanitizeInput(rawPayId);
     const timezone = rawTimezone && isValidTimezone(rawTimezone) ? rawTimezone : undefined;
+    const homeAddress = sanitizeInput(rawHomeAddress);
 
     const validation = validateBankDetails({
       bankAccountName,
@@ -83,11 +86,13 @@ export async function updateBankDetails(formData: FormData): Promise<SettingsAct
       bankAccountNo: string | null;
       payId: string | null;
       timezone?: string;
+      homeAddress: string | null;
     } = {
       bankAccountName: bankAccountName || null,
       bankBsb: formattedBsbVal,
       bankAccountNo: formattedAccountNo,
       payId: payId || null,
+      homeAddress: homeAddress || null,
     };
 
     if (timezone) {

@@ -150,6 +150,33 @@ export function getZonedMonthBounds(
 }
 
 /**
+ * Calculates the calendar days difference between two dates in the given timezone (dateB - dateA).
+ * Returns:
+ *   1 if dateB is tomorrow relative to dateA
+ *   0 if dateB is the same day as dateA
+ *  -1 if dateB was yesterday relative to dateA
+ *   N for N calendar days difference
+ * Independent of the hours/minutes/seconds of the dates.
+ */
+export function getCalendarDaysDiffInTimezone(
+  dateA: Date,
+  dateB: Date,
+  timeZoneInput?: string | null,
+): number {
+  const timeZone = resolveTimezone(timeZoneInput);
+  const boundsA = getZonedDayBounds(dateA, timeZone);
+  const boundsB = getZonedDayBounds(dateB, timeZone);
+
+  const [yA, mA, dA] = boundsA.dateStr.split("-").map(Number);
+  const [yB, mB, dB] = boundsB.dateStr.split("-").map(Number);
+
+  const utcA = Date.UTC(yA, mA - 1, dA);
+  const utcB = Date.UTC(yB, mB - 1, dB);
+
+  return Math.round((utcB - utcA) / (1000 * 60 * 60 * 24));
+}
+
+/**
  * Determines whether dateB is exactly the calendar day after dateA in the given timezone.
  */
 export function isTomorrowInTimezone(
@@ -157,13 +184,7 @@ export function isTomorrowInTimezone(
   dateB: Date,
   timeZoneInput?: string | null,
 ): boolean {
-  const timeZone = resolveTimezone(timeZoneInput);
-  const boundsA = getZonedDayBounds(dateA, timeZone);
-  const nextDay = new Date(boundsA.startOfDay.getTime() + 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000);
-  const boundsNext = getZonedDayBounds(nextDay, timeZone);
-  const boundsB = getZonedDayBounds(dateB, timeZone);
-
-  return boundsNext.dateStr === boundsB.dateStr;
+  return getCalendarDaysDiffInTimezone(dateA, dateB, timeZoneInput) === 1;
 }
 
 /**

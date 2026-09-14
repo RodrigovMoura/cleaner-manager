@@ -4,6 +4,7 @@ import { useState, useTransition, useSyncExternalStore } from "react";
 import { updateBankDetails } from "@/actions/settings";
 import { BankDetailsErrors } from "@/lib/validation";
 import { AUSTRALIAN_TIMEZONES, DEFAULT_TIMEZONE } from "@/lib/timezone";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface BankDetailsData {
   name: string;
@@ -13,6 +14,7 @@ interface BankDetailsData {
   bankAccountNo: string | null;
   payId: string | null;
   timezone?: string | null;
+  homeAddress?: string | null;
 }
 
 interface SettingsFormProps {
@@ -28,6 +30,7 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
     bankAccountNo: initialData?.bankAccountNo || "",
     payId: initialData?.payId || "",
     timezone: initialData?.timezone || DEFAULT_TIMEZONE,
+    homeAddress: initialData?.homeAddress || "",
   });
 
   const browserTz = useSyncExternalStore(
@@ -79,6 +82,7 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
     submitData.append("bankAccountNo", formData.bankAccountNo);
     submitData.append("payId", formData.payId);
     submitData.append("timezone", formData.timezone);
+    submitData.append("homeAddress", formData.homeAddress);
 
     startTransition(async () => {
       try {
@@ -279,6 +283,46 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
             )}
           </div>
 
+          {/* Residential Address */}
+          <div className='pt-5 border-t border-gray-100 space-y-3'>
+            <div>
+              <div className='flex items-center gap-2'>
+                <span className='text-base'>🏠</span>
+                <h3 className='text-sm font-bold text-gray-900'>Residential Address</h3>
+              </div>
+              <p className='text-xs text-gray-500 mt-0.5'>
+                Enter your home address. When you complete all clients of the day on your dashboard, a card will appear suggesting it&apos;s time to go home with a direct Google Maps button.
+              </p>
+            </div>
+
+            <AddressAutocomplete
+              name='homeAddress'
+              label='Home Address'
+              placeholder='e.g., 14 Example Way, Girrawheen WA 6064'
+              value={formData.homeAddress}
+              onChange={(val) => setFormData((prev) => ({ ...prev, homeAddress: val }))}
+              required={false}
+            />
+
+            {formData.homeAddress && (
+              <div className='flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs'>
+                <span className='text-gray-600 truncate mr-2'>
+                  📍 {formData.homeAddress}
+                </span>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formData.homeAddress)}`}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-blue-600 hover:text-blue-700 font-semibold shrink-0 inline-flex items-center gap-1'>
+                  <span>Test on Maps</span>
+                  <svg className='w-3 h-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14' />
+                  </svg>
+                </a>
+              </div>
+            )}
+          </div>
+
           <div className='pt-3 border-t border-gray-100 flex items-center justify-end'>
             <button
               type='submit'
@@ -300,7 +344,7 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
         </form>
       </div>
 
-      {/* Right Column: Live Invoice Preview */}
+      {/* Right Column: Live Invoice Preview & End-of-Day Navigation */}
       <div className='lg:col-span-5 space-y-4'>
         <div className='bg-gradient-to-br from-gray-50 to-blue-50/40 border border-gray-200 rounded-2xl p-5 shadow-xs space-y-3.5'>
           <div className='flex items-center justify-between'>
@@ -371,6 +415,53 @@ export default function SettingsForm({ initialData }: SettingsFormProps) {
             <span>
               The reference number is automatically generated with each invoice so you can easily match incoming bank payments.
             </span>
+          </div>
+        </div>
+
+        {/* End-of-Day Navigation Preview Card */}
+        <div className='bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border border-emerald-200/80 rounded-2xl p-5 shadow-xs space-y-3.5'>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5'>
+              <span>🚗</span>
+              <span>End-of-Day Navigation</span>
+            </h3>
+            {formData.homeAddress ? (
+              <span className='inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200'>
+                ✓ Ready
+              </span>
+            ) : (
+              <span className='inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200'>
+                No Address
+              </span>
+            )}
+          </div>
+
+          <p className='text-xs text-gray-600 leading-relaxed'>
+            Dashboard preview: When you finish your last scheduled cleaning of the day, this interactive card suggests heading home with direct Google Maps GPS navigation.
+          </p>
+
+          <div className='bg-white border border-emerald-100 rounded-xl p-3.5 space-y-2.5 shadow-2xs'>
+            <div className='flex items-start gap-2.5'>
+              <span className='text-xl'>🏠</span>
+              <div className='min-w-0 flex-1'>
+                <span className='text-xs font-bold text-gray-900 block'>
+                  Time to head home!
+                </span>
+                <p className='text-[11px] text-gray-500 truncate'>
+                  {formData.homeAddress ? `📍 ${formData.homeAddress}` : "Enter your home address on the left to activate."}
+                </p>
+              </div>
+            </div>
+
+            {formData.homeAddress && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formData.homeAddress)}`}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors'>
+                <span>Open in Google Maps ➔</span>
+              </a>
+            )}
           </div>
         </div>
       </div>
