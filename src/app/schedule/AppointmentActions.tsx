@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { updateAppointmentStatus, updateAppointment } from "@/actions/appointment";
+import { createInvoiceForAppointment } from "@/actions/invoice";
 import { formatToDateTimeLocal, formatDuration } from "@/lib/date";
 
 interface AppointmentActionsProps {
@@ -12,6 +13,7 @@ interface AppointmentActionsProps {
   initialPrice?: number;
   clientPreferredPaymentMethod?: "BANK_TRANSFER" | "CASH" | string;
   clientHourlyRate?: number;
+  hasInvoice?: boolean;
 }
 
 export default function AppointmentActions({
@@ -22,6 +24,7 @@ export default function AppointmentActions({
   initialPrice,
   clientPreferredPaymentMethod = "BANK_TRANSFER",
   clientHourlyRate = 50,
+  hasInvoice = false,
 }: AppointmentActionsProps) {
   const hourlyRate = clientHourlyRate > 0 ? clientHourlyRate : 50;
 
@@ -36,6 +39,8 @@ export default function AppointmentActions({
     initialPrice !== undefined && initialPrice !== null ? Number(initialPrice).toFixed(2) : "",
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Time variance state for completion modal
@@ -74,6 +79,7 @@ export default function AppointmentActions({
     setDurationMinutes(defaults.m);
     setCompletePrice(defaults.price);
     setIsCustomPrice(false);
+    setCompleteError(null);
     setIsCompleteModalOpen(true);
   };
 
@@ -103,9 +109,10 @@ export default function AppointmentActions({
 
   const handleConfirmComplete = async () => {
     setLoadingStatus("COMPLETED");
+    setCompleteError(null);
     const totalMinutes = durationHours * 60 + durationMinutes;
     const parsedPrice = parseFloat(completePrice);
-    await updateAppointmentStatus(
+    const result = await updateAppointmentStatus(
       appointmentId,
       "COMPLETED",
       selectedPaymentMethod,
@@ -113,7 +120,11 @@ export default function AppointmentActions({
       totalMinutes,
     );
     setLoadingStatus(null);
-    setIsCompleteModalOpen(false);
+    if (result.success) {
+      setIsCompleteModalOpen(false);
+    } else {
+      setCompleteError(result.message || "Failed to complete cleaning.");
+    }
   };
 
   const handleStatusChange = async (
@@ -121,8 +132,25 @@ export default function AppointmentActions({
     paymentMethod?: "BANK_TRANSFER" | "CASH",
   ) => {
     setLoadingStatus(newStatus);
-    await updateAppointmentStatus(appointmentId, newStatus, paymentMethod);
+    const result = await updateAppointmentStatus(appointmentId, newStatus, paymentMethod);
     setLoadingStatus(null);
+    if (!result.success && result.message) {
+      alert(result.message);
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    setIsGeneratingInvoice(true);
+    try {
+      const result = await createInvoiceForAppointment(appointmentId);
+      if (!result.success && result.message) {
+        alert(result.message);
+      }
+    } catch {
+      alert("Failed to generate invoice. Please try again.");
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
   };
 
   const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -209,10 +237,31 @@ export default function AppointmentActions({
           </button>
         </div>
       ) : (
-        <div className='flex items-center gap-1.5'>
+        <div className='flex items-center gap-1.5 flex-wrap'>
+          {currentStatus === "COMPLETED" && !hasInvoice && (
+            <button
+              type='button'
+              onClick={handleGenerateInvoice}
+              disabled={isGeneratingInvoice || loadingStatus !== null || isSaving}
+              className='px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 active:bg-emerald-200/80 border border-emerald-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 shadow-2xs'
+              title='Generate and send invoice for this completed cleaning'>
+              {isGeneratingInvoice ? (
+                <>
+                  <span className='w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin' />
+                  <span>Invoicing...</span>
+                </>
+              ) : (
+                <>
+                  <span>📄</span>
+                  <span>Create Invoice</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => handleStatusChange("SCHEDULED")}
-            disabled={loadingStatus !== null || isSaving}
+            disabled={loadingStatus !== null || isSaving || isGeneratingInvoice}
             className='px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1'>
             {loadingStatus === "SCHEDULED" ? (
               <>
@@ -227,7 +276,7 @@ export default function AppointmentActions({
           <button
             type='button'
             onClick={handleOpenEditModal}
-            disabled={loadingStatus !== null || isSaving}
+            disabled={loadingStatus !== null || isSaving || isGeneratingInvoice}
             className='px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-700 hover:bg-blue-50 border border-gray-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1'
             title='Edit date and time'>
             <svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
@@ -388,6 +437,17 @@ export default function AppointmentActions({
                 </svg>
               </button>
             </div>
+
+            {/* Error banner */}
+            {completeError && (
+              <div className='p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2'>
+                <svg className='w-4 h-4 shrink-0 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <circle cx='12' cy='12' r='10' strokeWidth='2' />
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M12 8v4m0 4h.01' />
+                </svg>
+                <span>{completeError}</span>
+              </div>
+            )}
 
             {/* Actual Time Worked & Rate */}
             <div className='p-3.5 bg-gray-50 border border-gray-200 rounded-xl space-y-3'>

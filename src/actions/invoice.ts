@@ -9,21 +9,45 @@ import { generateInvoicePdfBuffer } from "@/lib/pdf";
 import { resolveTimezone, formatInTimezone } from "@/lib/timezone";
 import { COMPANY_NAME } from "@/lib/constants";
 
-// Helper function to generate unique invoice numbers (e.g. INV-2026-0042)
-async function generateInvoiceNumber(userId: string): Promise<string> {
+// Robust helper function to generate unique sequential invoice numbers per user (e.g. INV-2026-0001)
+export async function generateInvoiceNumber(userId: string): Promise<string> {
   const currentYear = new Date().getFullYear();
+  const prefix = `INV-${currentYear}-`;
 
-  // Count existing invoices for this user in the current year
-  const count = await prisma.invoice.count({
+  // Fetch existing invoices for this user in the current year
+  const userInvoices = await prisma.invoice.findMany({
     where: {
-      client: {
-        userId,
-      },
+      userId,
+      invoiceNumber: { startsWith: prefix },
     },
+    select: { invoiceNumber: true },
   });
 
-  const sequentialNumber = String(count + 1).padStart(4, "0");
-  return `INV-${currentYear}-${sequentialNumber}`;
+  let maxSeq = 0;
+  for (const inv of userInvoices) {
+    const seqStr = inv.invoiceNumber.replace(prefix, "");
+    const seqNum = parseInt(seqStr, 10);
+    if (!isNaN(seqNum) && seqNum > maxSeq) {
+      maxSeq = seqNum;
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+
+  // Collision prevention loop
+  let collision = await prisma.invoice.findFirst({
+    where: { userId, invoiceNumber: candidate },
+  });
+  while (collision) {
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+    collision = await prisma.invoice.findFirst({
+      where: { userId, invoiceNumber: candidate },
+    });
+  }
+
+  return candidate;
 }
 
 export async function createInvoiceForAppointment(appointmentId: string) {
@@ -75,6 +99,7 @@ export async function createInvoiceForAppointment(appointmentId: string) {
       data: {
         appointmentId: appointment.id,
         clientId: appointment.clientId,
+        userId: session.userId,
         invoiceNumber,
         amount: appointment.price,
         dueDate,
@@ -88,11 +113,26 @@ export async function createInvoiceForAppointment(appointmentId: string) {
       },
     });
 
+    let emailSentNote = "";
+    if (appointment.client.autoSendInvoice && appointment.client.email) {
+      const emailResult = await sendInvoiceEmail(invoice.id);
+      if (emailResult.success) {
+        emailSentNote = ` and sent automatically to ${appointment.client.email}`;
+      } else {
+        emailSentNote = ` (email not sent: ${emailResult.message})`;
+      }
+    }
+
     revalidatePath("/invoices");
     revalidatePath("/schedule");
     revalidatePath(`/clients/${appointment.clientId}`);
+    revalidatePath("/");
 
-    return { success: true, message: "Invoice generated successfully!", invoice };
+    return {
+      success: true,
+      message: `Invoice ${invoiceNumber} created successfully${emailSentNote}!`,
+      invoice,
+    };
   } catch (error) {
     console.error("Failed to create invoice:", error);
     return { success: false, message: "An error occurred while creating the invoice." };

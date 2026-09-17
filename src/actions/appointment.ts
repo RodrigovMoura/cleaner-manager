@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { sendInvoiceEmail } from "./invoice";
+import { sendInvoiceEmail, generateInvoiceNumber } from "./invoice";
 import { Prisma, AppointmentStatus, PaymentMethod } from "@prisma/client";
 import { addMonths } from "@/lib/date";
 
@@ -184,86 +184,95 @@ export async function updateAppointmentStatus(
         ? durationMinutes
         : appointment.durationMinutes;
 
-    // Update appointment status, price, duration, and payment method
-    await prisma.appointment.update({
-      where: { id: appointmentId },
-      data: {
-        status: newStatus,
-        ...(newStatus === "COMPLETED"
-          ? {
-              paymentMethod: effectivePaymentMethod,
-              price: finalPrice,
-              durationMinutes: finalDurationMinutes,
-            }
-          : newStatus === "SCHEDULED"
-            ? { paymentMethod: null }
-            : {}),
-      },
+    let createdInvoiceId: string | null = null;
+    let emailSentSuccess: boolean | null = null;
+    let emailErrorMessage: string | null = null;
+
+    // Use transaction so appointment status and invoice generation remain consistent
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: newStatus,
+          ...(newStatus === "COMPLETED"
+            ? {
+                paymentMethod: effectivePaymentMethod,
+                price: finalPrice,
+                durationMinutes: finalDurationMinutes,
+              }
+            : newStatus === "SCHEDULED"
+              ? { paymentMethod: null }
+              : {}),
+        },
+      });
+
+      // Auto-generate invoice ONLY if completed by BANK_TRANSFER, client requires invoice, and none exists yet
+      if (
+        newStatus === "COMPLETED" &&
+        effectivePaymentMethod === "BANK_TRANSFER" &&
+        appointment.client.enableInvoice &&
+        !appointment.invoice
+      ) {
+        const invoiceNumber = await generateInvoiceNumber(session.userId);
+        const dueDate = new Date(appointment.date);
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        const user = await tx.user.findUnique({
+          where: { id: session.userId },
+          select: {
+            bankAccountName: true,
+            bankBsb: true,
+            bankAccountNo: true,
+            payId: true,
+          },
+        });
+
+        const createdInvoice = await tx.invoice.create({
+          data: {
+            appointmentId: appointment.id,
+            clientId: appointment.clientId,
+            userId: session.userId,
+            invoiceNumber,
+            amount: finalPrice,
+            dueDate,
+            status: "PENDING",
+            durationMinutes: finalDurationMinutes,
+            hourlyRate: appointment.client.hourlyRate,
+            paymentAccountName: user?.bankAccountName,
+            paymentBsb: user?.bankBsb,
+            paymentAccountNo: user?.bankAccountNo,
+            paymentPayId: user?.payId,
+          },
+        });
+
+        createdInvoiceId = createdInvoice.id;
+      } else if (
+        newStatus === "COMPLETED" &&
+        effectivePaymentMethod === "BANK_TRANSFER" &&
+        appointment.invoice &&
+        appointment.invoice.status === "PENDING"
+      ) {
+        // Keep existing pending invoice synced with adjusted price and duration
+        await tx.invoice.update({
+          where: { id: appointment.invoice.id },
+          data: {
+            amount: finalPrice,
+            durationMinutes: finalDurationMinutes,
+            hourlyRate: appointment.client.hourlyRate,
+          },
+        });
+      }
     });
 
-    // Auto-generate invoice ONLY if completed by BANK_TRANSFER, client requires invoice, and none exists yet
-    if (
-      newStatus === "COMPLETED" &&
-      effectivePaymentMethod === "BANK_TRANSFER" &&
-      appointment.client.enableInvoice &&
-      !appointment.invoice
-    ) {
-      const currentYear = new Date().getFullYear();
-      const count = await prisma.invoice.count({
-        where: { client: { userId: session.userId } },
-      });
-
-      const invoiceNumber = `INV-${currentYear}-${String(count + 1).padStart(4, "0")}`;
-      const dueDate = new Date(appointment.date);
-      dueDate.setDate(dueDate.getDate() + 7);
-
-      const user = await prisma.user.findUnique({
-        where: { id: session.userId },
-        select: {
-          bankAccountName: true,
-          bankBsb: true,
-          bankAccountNo: true,
-          payId: true,
-        },
-      });
-
-      const createdInvoice = await prisma.invoice.create({
-        data: {
-          appointmentId: appointment.id,
-          clientId: appointment.clientId,
-          invoiceNumber,
-          amount: finalPrice,
-          dueDate,
-          status: "PENDING",
-          durationMinutes: finalDurationMinutes,
-          hourlyRate: appointment.client.hourlyRate,
-          paymentAccountName: user?.bankAccountName,
-          paymentBsb: user?.bankBsb,
-          paymentAccountNo: user?.bankAccountNo,
-          paymentPayId: user?.payId,
-        },
-      });
-
-      // If autoSendInvoice is active and client has an email, send automatically
-      if (appointment.client.autoSendInvoice && appointment.client.email) {
-        // Asynchronous internal call for immediate dispatch
-        await sendInvoiceEmail(createdInvoice.id);
+    // If autoSendInvoice is active and client has an email, send after transaction commits
+    if (createdInvoiceId && appointment.client.autoSendInvoice && appointment.client.email) {
+      const emailResult = await sendInvoiceEmail(createdInvoiceId);
+      if (emailResult && !emailResult.success) {
+        emailSentSuccess = false;
+        emailErrorMessage = emailResult.message;
+      } else if (emailResult && emailResult.success) {
+        emailSentSuccess = true;
       }
-    } else if (
-      newStatus === "COMPLETED" &&
-      effectivePaymentMethod === "BANK_TRANSFER" &&
-      appointment.invoice &&
-      appointment.invoice.status === "PENDING"
-    ) {
-      // Keep existing pending invoice synced with adjusted price and duration
-      await prisma.invoice.update({
-        where: { id: appointment.invoice.id },
-        data: {
-          amount: finalPrice,
-          durationMinutes: finalDurationMinutes,
-          hourlyRate: appointment.client.hourlyRate,
-        },
-      });
     }
 
     revalidatePath("/schedule");
@@ -271,12 +280,24 @@ export async function updateAppointmentStatus(
     revalidatePath(`/clients/${appointment.clientId}`);
     revalidatePath("/");
 
+    let message =
+      newStatus === "COMPLETED" && effectivePaymentMethod === "CASH"
+        ? "Cleaning marked as completed (paid in cash, no invoice needed)!"
+        : `Appointment marked as ${newStatus.toLowerCase()}!`;
+
+    if (createdInvoiceId) {
+      if (emailSentSuccess === true) {
+        message = "Cleaning completed, invoice created and sent automatically!";
+      } else if (emailSentSuccess === false) {
+        message = `Cleaning completed and invoice created, but email could not be sent (${emailErrorMessage}).`;
+      } else {
+        message = "Cleaning completed and invoice created!";
+      }
+    }
+
     return {
       success: true,
-      message:
-        newStatus === "COMPLETED" && effectivePaymentMethod === "CASH"
-          ? "Cleaning marked as completed (paid in cash, no invoice needed)!"
-          : `Appointment marked as ${newStatus.toLowerCase()}!`,
+      message,
     };
   } catch (error) {
     console.error("Failed to update appointment status:", error);

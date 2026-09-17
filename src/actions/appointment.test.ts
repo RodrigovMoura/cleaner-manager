@@ -26,6 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       findUnique: vi.fn(),
     },
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(prisma)),
   },
 }));
 
@@ -39,6 +40,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("./invoice", () => ({
   sendInvoiceEmail: vi.fn(),
+  generateInvoiceNumber: vi.fn().mockResolvedValue("INV-2026-0006"),
 }));
 
 describe("appointment actions", () => {

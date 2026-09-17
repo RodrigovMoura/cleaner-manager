@@ -67,7 +67,7 @@ export default async function HomePage() {
         date: { gte: startOfToday, lte: endOfToday },
         status: { in: ["SCHEDULED", "COMPLETED"] },
       },
-      include: { client: true },
+      include: { client: true, invoice: true },
       orderBy: { date: "asc" },
     }),
 
@@ -492,6 +492,7 @@ export default async function HomePage() {
                       initialPrice={Number(apt.price)}
                       clientPreferredPaymentMethod={apt.client.preferredPaymentMethod}
                       clientHourlyRate={apt.client.hourlyRate ? Number(apt.client.hourlyRate) : 50}
+                      hasInvoice={Boolean(apt.invoice)}
                     />
                   </div>
                 </div>

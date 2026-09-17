@@ -38,6 +38,9 @@ export async function getClientById(id: string) {
     },
     include: {
       appointments: {
+        include: {
+          invoice: true,
+        },
         orderBy: {
           date: "desc",
         },

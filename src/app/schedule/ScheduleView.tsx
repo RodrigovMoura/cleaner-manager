@@ -14,6 +14,7 @@ export interface SerializedAppointment {
   status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
   paymentMethod?: "BANK_TRANSFER" | "CASH" | string | null;
   durationMinutes?: number | null;
+  hasInvoice?: boolean;
   client: {
     id: string;
     name: string;
@@ -272,6 +273,7 @@ export default function ScheduleView({
                       initialPrice={apt.price}
                       clientPreferredPaymentMethod={apt.client.preferredPaymentMethod || "BANK_TRANSFER"}
                       clientHourlyRate={apt.client.hourlyRate ? Number(apt.client.hourlyRate) : 50}
+                      hasInvoice={Boolean(apt.hasInvoice)}
                     />
                   </div>
                 </div>

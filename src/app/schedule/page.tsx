@@ -28,6 +28,7 @@ export default async function SchedulePage({ searchParams }: SchedulePageProps) 
       status: apt.status,
       paymentMethod: apt.paymentMethod,
       durationMinutes: apt.durationMinutes,
+      hasInvoice: Boolean(apt.invoice),
       client: {
         id: apt.client.id,
         name: apt.client.name,

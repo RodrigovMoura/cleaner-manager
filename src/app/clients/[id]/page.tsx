@@ -226,6 +226,11 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                             ⏱️ {formatDuration(apt.durationMinutes)}
                           </span>
                         ) : null}
+                        {apt.invoice && (
+                          <span className='text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100'>
+                            {apt.invoice.invoiceNumber}
+                          </span>
+                        )}
                         <AppointmentActions
                           appointmentId={apt.id}
                           currentStatus={apt.status}
@@ -234,6 +239,7 @@ export default async function ClientDetailsPage({ params }: PageProps) {
                           initialPrice={Number(apt.price)}
                           clientPreferredPaymentMethod={client.preferredPaymentMethod}
                           clientHourlyRate={client.hourlyRate ? Number(client.hourlyRate) : 50}
+                          hasInvoice={Boolean(apt.invoice)}
                         />
                       </div>
                     </div>
