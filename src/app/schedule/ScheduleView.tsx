@@ -216,7 +216,7 @@ export default function ScheduleView({
                   key={apt.id}
                   className={`border p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
                     isHistory
-                      ? "bg-white/80 border-gray-200 opacity-90"
+                      ? "bg-gray-50/70 border-gray-200 hover:border-gray-300"
                       : "bg-white border-gray-200 shadow-xs hover:shadow-sm hover:border-gray-300"
                   }`}>
                   <div className='space-y-1.5 min-w-0 flex-1'>

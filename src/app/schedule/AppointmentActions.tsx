@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { updateAppointmentStatus, updateAppointment } from "@/actions/appointment";
 import { createInvoiceForAppointment } from "@/actions/invoice";
 import { formatToDateTimeLocal, formatDuration } from "@/lib/date";
+
+const emptySubscribe = () => () => {};
 
 interface AppointmentActionsProps {
   appointmentId: string;
@@ -28,6 +31,7 @@ export default function AppointmentActions({
 }: AppointmentActionsProps) {
   const hourlyRate = clientHourlyRate > 0 ? clientHourlyRate : 50;
 
+  const isMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
@@ -293,7 +297,7 @@ export default function AppointmentActions({
       )}
 
       {/* Edit Appointment Modal */}
-      {isEditModalOpen && (
+      {isMounted && isEditModalOpen && createPortal(
         <div
           className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150'
           onClick={() => !isSaving && setIsEditModalOpen(false)}>
@@ -406,11 +410,12 @@ export default function AppointmentActions({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Complete Appointment Modal (Cash vs Bank Transfer) */}
-      {isCompleteModalOpen && (
+      {isMounted && isCompleteModalOpen && createPortal(
         <div
           className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150'
           onClick={() => loadingStatus === null && setIsCompleteModalOpen(false)}>
@@ -671,7 +676,8 @@ export default function AppointmentActions({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

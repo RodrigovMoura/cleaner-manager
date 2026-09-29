@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { sendInvoiceEmail, updateInvoiceStatus } from "@/actions/invoice";
+
+const emptySubscribe = () => () => {};
 
 interface InvoiceActionsProps {
   invoiceId: string;
@@ -17,6 +20,7 @@ interface ToastNotification {
 }
 
 export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clientEmail }: InvoiceActionsProps) {
+  const isMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [loadingPayment, setLoadingPayment] = useState(false);
@@ -139,7 +143,7 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
   return (
     <>
       {/* Floating Toast Notification */}
-      {toast && (
+      {isMounted && toast && createPortal(
         <div className='fixed top-4 inset-x-4 sm:inset-x-auto sm:right-5 sm:max-w-md z-50 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto'>
           <div
             className={`p-4 rounded-2xl shadow-xl border flex items-start gap-3.5 ${
@@ -191,7 +195,8 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
               </svg>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className='flex items-center gap-2'>
@@ -229,7 +234,7 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
         )}
 
         {/* 1. Payment Date Modal */}
-        {isPaymentModalOpen && (
+        {isMounted && isPaymentModalOpen && createPortal(
           <div
             className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4'
             onClick={() => setIsPaymentModalOpen(false)}>
@@ -281,11 +286,12 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* 2. Email Confirmation Modal */}
-        {isEmailModalOpen && (
+        {isMounted && isEmailModalOpen && createPortal(
           <div
             className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4'
             onClick={() => !sendingEmail && setIsEmailModalOpen(false)}>
@@ -348,7 +354,8 @@ export default function InvoiceActions({ invoiceId, currentStatus, sentAt, clien
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </>
