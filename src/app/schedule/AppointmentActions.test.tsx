@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import AppointmentActions from "./AppointmentActions";
+
+import { cancelAppointment } from "@/actions/appointment";
 
 vi.mock("@/actions/appointment", () => ({
   updateAppointmentStatus: vi.fn().mockResolvedValue({ success: true, message: "Status updated" }),
   updateAppointment: vi.fn().mockResolvedValue({ success: true, message: "Appointment updated" }),
+  cancelAppointment: vi.fn().mockResolvedValue({ success: true, message: "Appointment cancelled" }),
 }));
 
 vi.mock("@/actions/invoice", () => ({
@@ -99,5 +102,121 @@ describe("AppointmentActions Component", () => {
     // Close with Escape
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("heading", { name: /complete cleaning/i })).not.toBeInTheDocument();
+  });
+
+  it("should render Cancel button with red background and open Cancel modal with date, time, and options", async () => {
+    render(
+      <AppointmentActions
+        appointmentId='apt-cancel-1'
+        currentStatus='SCHEDULED'
+        clientName='Carlos Silva'
+        initialDate='2026-10-20T14:30:00.000Z'
+        initialPrice={160}
+      />,
+    );
+
+    const cancelBtn = screen.getByRole("button", { name: /^cancel$/i });
+    expect(cancelBtn).toBeInTheDocument();
+    // Verify it has red background classes already (not only hover)
+    expect(cancelBtn.className).toContain("bg-red-50");
+    expect(cancelBtn.className).toContain("text-red-700");
+
+    // Click Cancel to open modal
+    fireEvent.click(cancelBtn);
+
+    // Modal should be open
+    expect(screen.getByRole("heading", { name: /cancel cleaning/i })).toBeInTheDocument();
+    expect(screen.getByText("Carlos Silva")).toBeInTheDocument();
+
+    // Verify date and time are displayed in the modal
+    expect(screen.getByText(/scheduled date:/i)).toBeInTheDocument();
+    expect(screen.getByText(/scheduled time:/i)).toBeInTheDocument();
+    expect(screen.getByText(/\$160\.00 AUD/i)).toBeInTheDocument();
+
+    // Verify cancellation options are displayed
+    expect(screen.getByLabelText(/only this appointment/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/all appointments for this client/i)).toBeInTheDocument();
+
+    // Default option is "Only this appointment"
+    expect(screen.getByLabelText(/only this appointment/i)).toBeChecked();
+
+    // Click "Keep Appointment" to close without cancelling
+    fireEvent.click(screen.getByRole("button", { name: /keep appointment/i }));
+    expect(screen.queryByRole("heading", { name: /cancel cleaning/i })).not.toBeInTheDocument();
+    expect(cancelAppointment).not.toHaveBeenCalled();
+  });
+
+  it("should cancel only current appointment when THIS_ONLY is selected", async () => {
+    render(
+      <AppointmentActions
+        appointmentId='apt-cancel-2'
+        currentStatus='SCHEDULED'
+        clientName='Maria Santos'
+        initialDate='2026-10-21T09:00:00.000Z'
+        initialPrice={120}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(screen.getByRole("heading", { name: /cancel cleaning/i })).toBeInTheDocument();
+
+    // Submit single appointment cancellation
+    const confirmBtn = screen.getByRole("button", { name: /cancel appointment/i });
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    expect(cancelAppointment).toHaveBeenCalledWith("apt-cancel-2", "THIS_ONLY");
+  });
+
+  it("should cancel all appointments for client when ALL_FOR_CLIENT is selected", async () => {
+    render(
+      <AppointmentActions
+        appointmentId='apt-cancel-3'
+        currentStatus='SCHEDULED'
+        clientName='Maria Santos'
+        initialDate='2026-10-21T09:00:00.000Z'
+        initialPrice={120}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    // Select "All appointments for this client"
+    const allRadio = screen.getByLabelText(/all appointments for this client/i);
+    fireEvent.click(allRadio);
+    expect(allRadio).toBeChecked();
+
+    // Button text updates to "Cancel All Appointments"
+    const confirmAllBtn = screen.getByRole("button", { name: /cancel all appointments/i });
+    await act(async () => {
+      fireEvent.click(confirmAllBtn);
+    });
+
+    expect(cancelAppointment).toHaveBeenCalledWith("apt-cancel-3", "ALL_FOR_CLIENT");
+  });
+
+  it("should display error message if cancelAppointment returns failure", async () => {
+    vi.mocked(cancelAppointment).mockResolvedValueOnce({
+      success: false,
+      message: "Database connection failed",
+    });
+
+    render(
+      <AppointmentActions
+        appointmentId='apt-cancel-err'
+        currentStatus='SCHEDULED'
+        clientName='David Brown'
+        initialDate='2026-10-22T11:00:00.000Z'
+        initialPrice={130}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /cancel appointment/i }));
+    });
+
+    expect(await screen.findByText("Database connection failed")).toBeInTheDocument();
   });
 });

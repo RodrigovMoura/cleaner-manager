@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { updateAppointmentStatus, updateAppointment } from "@/actions/appointment";
+import { updateAppointmentStatus, updateAppointment, cancelAppointment } from "@/actions/appointment";
 import { createInvoiceForAppointment } from "@/actions/invoice";
 import { formatToDateTimeLocal, formatDuration } from "@/lib/date";
 
@@ -10,6 +10,7 @@ const emptySubscribe = () => () => {};
 
 interface AppointmentActionsProps {
   appointmentId: string;
+  clientId?: string;
   currentStatus: "SCHEDULED" | "COMPLETED" | "CANCELLED";
   clientName?: string;
   initialDate?: string | Date;
@@ -35,6 +36,10 @@ export default function AppointmentActions({
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelScope, setCancelScope] = useState<"THIS_ONLY" | "ALL_FOR_CLIENT">("THIS_ONLY");
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"BANK_TRANSFER" | "CASH">(
     clientPreferredPaymentMethod === "CASH" ? "CASH" : "BANK_TRANSFER",
   );
@@ -185,17 +190,58 @@ export default function AppointmentActions({
     }
   };
 
+  const dateObj = initialDate ? new Date(initialDate) : null;
+  const isValidDate = Boolean(dateObj && !isNaN(dateObj.getTime()));
+  const formattedDate = isValidDate && dateObj
+    ? dateObj.toLocaleDateString("en-AU", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
+  const formattedTime = isValidDate && dateObj
+    ? dateObj.toLocaleTimeString("en-AU", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+  const handleOpenCancelModal = () => {
+    setCancelScope("THIS_ONLY");
+    setCancelError(null);
+    setIsCancelModalOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const result = await cancelAppointment(appointmentId, cancelScope);
+      if (result.success) {
+        setIsCancelModalOpen(false);
+      } else {
+        setCancelError(result.message || "Failed to cancel appointment.");
+      }
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   // Close modal on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSaving && loadingStatus === null) {
+      if (e.key === "Escape" && !isSaving && loadingStatus === null && !isCancelling) {
         if (isEditModalOpen) setIsEditModalOpen(false);
         if (isCompleteModalOpen) setIsCompleteModalOpen(false);
+        if (isCancelModalOpen) setIsCancelModalOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEditModalOpen, isCompleteModalOpen, isSaving, loadingStatus]);
+  }, [isEditModalOpen, isCompleteModalOpen, isCancelModalOpen, isSaving, loadingStatus, isCancelling]);
 
   return (
     <>
@@ -204,7 +250,7 @@ export default function AppointmentActions({
           <button
             type='button'
             onClick={handleOpenCompleteModal}
-            disabled={loadingStatus !== null || isSaving}
+            disabled={loadingStatus !== null || isSaving || isCancelling}
             className='px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 rounded-lg transition-colors shadow-2xs disabled:opacity-50 flex items-center gap-1'>
             {loadingStatus === "COMPLETED" ? (
               <>
@@ -219,7 +265,7 @@ export default function AppointmentActions({
           <button
             type='button'
             onClick={handleOpenEditModal}
-            disabled={loadingStatus !== null || isSaving}
+            disabled={loadingStatus !== null || isSaving || isCancelling}
             className='px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100/80 active:bg-blue-200/80 border border-blue-200/80 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5'
             title='Edit scheduled date and time'>
             <svg className='w-3.5 h-3.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
@@ -234,10 +280,11 @@ export default function AppointmentActions({
           </button>
 
           <button
-            onClick={() => handleStatusChange("CANCELLED")}
-            disabled={loadingStatus !== null || isSaving}
-            className='px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 border border-gray-300 hover:border-red-200 rounded-lg transition-colors disabled:opacity-50'>
-            {loadingStatus === "CANCELLED" ? "..." : "Cancel"}
+            type='button'
+            onClick={handleOpenCancelModal}
+            disabled={loadingStatus !== null || isSaving || isCancelling}
+            className='px-2.5 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 hover:text-red-800 active:bg-red-200 border border-red-200 hover:border-red-300 rounded-lg transition-colors disabled:opacity-50'>
+            Cancel
           </button>
         </div>
       ) : (
@@ -672,6 +719,175 @@ export default function AppointmentActions({
                   </>
                 ) : (
                   "Confirm & Complete"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Cancel Appointment Modal */}
+      {isMounted && isCancelModalOpen && createPortal(
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150'
+          onClick={() => !isCancelling && setIsCancelModalOpen(false)}>
+          <div
+            className='bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-5 text-left border border-gray-100 animate-in zoom-in-95 duration-150'
+            onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className='flex items-start justify-between gap-3'>
+              <div className='flex items-center gap-3'>
+                <div className='p-2.5 bg-red-100 text-red-600 rounded-xl shrink-0'>
+                  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth='2'
+                      d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className='text-lg font-bold text-gray-900'>Cancel Cleaning</h3>
+                  <p className='text-xs text-gray-500'>Are you sure you want to cancel this appointment?</p>
+                </div>
+              </div>
+              <button
+                type='button'
+                onClick={() => !isCancelling && setIsCancelModalOpen(false)}
+                className='text-gray-400 hover:text-gray-600 rounded-lg p-1 transition-colors'
+                aria-label='Close modal'>
+                <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M6 18L18 6M6 6l12 12' />
+                </svg>
+              </button>
+            </div>
+
+            {/* Error banner */}
+            {cancelError && (
+              <div className='p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2'>
+                <svg className='w-4 h-4 shrink-0 mt-0.5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                  <circle cx='12' cy='12' r='10' strokeWidth='2' />
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth='2' d='M12 8v4m0 4h.01' />
+                </svg>
+                <span>{cancelError}</span>
+              </div>
+            )}
+
+            {/* Appointment Details Box */}
+            <div className='p-3.5 bg-gray-50 border border-gray-200 rounded-xl space-y-2'>
+              {clientName && (
+                <div className='flex items-center justify-between text-xs'>
+                  <span className='text-gray-500 font-medium'>Client:</span>
+                  <span className='font-bold text-gray-900'>{clientName}</span>
+                </div>
+              )}
+              <div className='flex items-center justify-between text-xs'>
+                <span className='text-gray-500 font-medium'>Scheduled Date:</span>
+                <span className='font-bold text-gray-900'>{formattedDate || "—"}</span>
+              </div>
+              <div className='flex items-center justify-between text-xs'>
+                <span className='text-gray-500 font-medium'>Scheduled Time:</span>
+                <span className='font-bold text-gray-900'>{formattedTime || "—"}</span>
+              </div>
+              {initialPrice !== undefined && initialPrice !== null && (
+                <div className='flex items-center justify-between text-xs'>
+                  <span className='text-gray-500 font-medium'>Price:</span>
+                  <span className='font-bold text-gray-900'>${Number(initialPrice).toFixed(2)} AUD</span>
+                </div>
+              )}
+            </div>
+
+            {/* Cancellation Scope Options */}
+            <div className='space-y-2'>
+              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                Cancellation Option
+              </label>
+              <div className='grid grid-cols-1 gap-2'>
+                {/* Option 1: Only this appointment */}
+                <div
+                  onClick={() => setCancelScope("THIS_ONLY")}
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                    cancelScope === "THIS_ONLY"
+                      ? "border-red-600 bg-red-50/40 shadow-xs"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}>
+                  <input
+                    type='radio'
+                    id={`cancel-scope-single-${appointmentId}`}
+                    name={`cancelScope-${appointmentId}`}
+                    value='THIS_ONLY'
+                    checked={cancelScope === "THIS_ONLY"}
+                    onChange={() => setCancelScope("THIS_ONLY")}
+                    className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                  />
+                  <div className='min-w-0 flex-1'>
+                    <label
+                      htmlFor={`cancel-scope-single-${appointmentId}`}
+                      className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                      Only this appointment
+                    </label>
+                    <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                      Cancel only the cleaning scheduled for {formattedDate ? `${formattedDate} at ${formattedTime}` : "this date"}.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Option 2: All appointments for this client */}
+                <div
+                  onClick={() => setCancelScope("ALL_FOR_CLIENT")}
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                    cancelScope === "ALL_FOR_CLIENT"
+                      ? "border-red-600 bg-red-50/40 shadow-xs"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}>
+                  <input
+                    type='radio'
+                    id={`cancel-scope-all-${appointmentId}`}
+                    name={`cancelScope-${appointmentId}`}
+                    value='ALL_FOR_CLIENT'
+                    checked={cancelScope === "ALL_FOR_CLIENT"}
+                    onChange={() => setCancelScope("ALL_FOR_CLIENT")}
+                    className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                  />
+                  <div className='min-w-0 flex-1'>
+                    <label
+                      htmlFor={`cancel-scope-all-${appointmentId}`}
+                      className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                      All appointments for this client
+                    </label>
+                    <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                      Cancel all existing scheduled cleanings for {clientName || "this client"}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className='flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100'>
+              <button
+                type='button'
+                disabled={isCancelling}
+                onClick={() => setIsCancelModalOpen(false)}
+                className='px-3.5 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50'>
+                Keep Appointment
+              </button>
+              <button
+                type='button'
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                className='px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-red-600 hover:bg-red-700 active:bg-red-800 rounded-xl transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-70 disabled:cursor-not-allowed'>
+                {isCancelling ? (
+                  <>
+                    <span className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                    <span>Cancelling...</span>
+                  </>
+                ) : cancelScope === "ALL_FOR_CLIENT" ? (
+                  "Cancel All Appointments"
+                ) : (
+                  "Cancel Appointment"
                 )}
               </button>
             </div>

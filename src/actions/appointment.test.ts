@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { updateAppointment, getAppointmentById, createAppointment, updateAppointmentStatus } from "./appointment";
+import { updateAppointment, getAppointmentById, createAppointment, updateAppointmentStatus, cancelAppointment } from "./appointment";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -17,6 +17,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       createMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     invoice: {
       count: vi.fn(),
@@ -577,6 +578,102 @@ describe("appointment actions", () => {
           paymentMethod: null,
         },
       });
+    });
+  });
+
+  describe("cancelAppointment", () => {
+    it("should reject cancellation if user is not authenticated", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce(null);
+
+      const result = await cancelAppointment("apt-123", "THIS_ONLY");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Unauthorized");
+      expect(prisma.appointment.update).not.toHaveBeenCalled();
+      expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("should reject cancellation if appointmentId is missing", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+
+      const result = await cancelAppointment("", "THIS_ONLY");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Appointment ID is required");
+    });
+
+    it("should reject cancellation if appointment is not found or unauthorized", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(null);
+
+      const result = await cancelAppointment("apt-not-found", "THIS_ONLY");
+      expect(result.success).toBe(false);
+      expect(result.message).toContain("Appointment not found or unauthorized");
+      expect(prisma.appointment.update).not.toHaveBeenCalled();
+    });
+
+    it("should cancel only the specified appointment when scope is THIS_ONLY", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-123",
+        clientId: "client-1",
+        status: AppointmentStatus.SCHEDULED,
+        client: { id: "client-1", name: "Alice", userId: "user-1" },
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.update).mockResolvedValueOnce({ id: "apt-123" } as never);
+
+      const result = await cancelAppointment("apt-123", "THIS_ONLY");
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("cancelled successfully");
+      expect(prisma.appointment.update).toHaveBeenCalledWith({
+        where: { id: "apt-123" },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+      expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+      expect(revalidatePath).toHaveBeenCalledWith("/schedule");
+      expect(revalidatePath).toHaveBeenCalledWith("/clients/client-1");
+      expect(revalidatePath).toHaveBeenCalledWith("/calendar");
+      expect(revalidatePath).toHaveBeenCalledWith("/invoices");
+      expect(revalidatePath).toHaveBeenCalledWith("/");
+    });
+
+    it("should cancel all scheduled appointments for client when scope is ALL_FOR_CLIENT", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const mockAppointment = {
+        id: "apt-123",
+        clientId: "client-1",
+        status: AppointmentStatus.SCHEDULED,
+        client: { id: "client-1", name: "Alice", userId: "user-1" },
+      };
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(mockAppointment as never);
+      vi.mocked(prisma.appointment.updateMany).mockResolvedValueOnce({ count: 5 } as never);
+
+      const result = await cancelAppointment("apt-123", "ALL_FOR_CLIENT");
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Successfully cancelled all 5 scheduled cleanings for Alice");
+      expect(prisma.appointment.updateMany).toHaveBeenCalledWith({
+        where: {
+          clientId: "client-1",
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: "user-1",
+          },
+        },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+      expect(prisma.appointment.update).not.toHaveBeenCalled();
+      expect(revalidatePath).toHaveBeenCalledWith("/schedule");
+      expect(revalidatePath).toHaveBeenCalledWith("/clients/client-1");
+      expect(revalidatePath).toHaveBeenCalledWith("/calendar");
+      expect(revalidatePath).toHaveBeenCalledWith("/invoices");
+      expect(revalidatePath).toHaveBeenCalledWith("/");
     });
   });
 });

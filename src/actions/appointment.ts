@@ -305,6 +305,87 @@ export async function updateAppointmentStatus(
   }
 }
 
+export async function cancelAppointment(
+  appointmentId: string,
+  scope: "THIS_ONLY" | "ALL_FOR_CLIENT" = "THIS_ONLY",
+) {
+  try {
+    const session = await getSession();
+    if (!session?.userId) {
+      return { success: false, message: "Unauthorized: Please log in to continue." };
+    }
+
+    if (!appointmentId) {
+      return { success: false, message: "Appointment ID is required." };
+    }
+
+    const appointment = await prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        client: {
+          userId: session.userId,
+        },
+      },
+      include: {
+        client: true,
+      },
+    });
+
+    if (!appointment) {
+      return { success: false, message: "Appointment not found or unauthorized." };
+    }
+
+    if (scope === "ALL_FOR_CLIENT") {
+      const result = await prisma.appointment.updateMany({
+        where: {
+          clientId: appointment.clientId,
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: session.userId,
+          },
+        },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+
+      revalidatePath("/schedule");
+      revalidatePath(`/clients/${appointment.clientId}`);
+      revalidatePath("/calendar");
+      revalidatePath("/invoices");
+      revalidatePath("/");
+
+      return {
+        success: true,
+        message: `Successfully cancelled all ${result.count} scheduled cleanings for ${appointment.client.name}.`,
+        count: result.count,
+      };
+    } else {
+      await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+
+      revalidatePath("/schedule");
+      revalidatePath(`/clients/${appointment.clientId}`);
+      revalidatePath("/calendar");
+      revalidatePath("/invoices");
+      revalidatePath("/");
+
+      return {
+        success: true,
+        message: "Appointment cancelled successfully.",
+        count: 1,
+      };
+    }
+  } catch (error) {
+    console.error("Failed to cancel appointment:", error);
+    return { success: false, message: "An error occurred while cancelling. Please try again." };
+  }
+}
+
 export async function getAppointmentById(appointmentId: string) {
   const session = await getSession();
   if (!session?.userId) {

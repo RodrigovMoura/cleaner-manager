@@ -267,6 +267,7 @@ export default function ScheduleView({
                     </span>
                     <AppointmentActions
                       appointmentId={apt.id}
+                      clientId={apt.client.id}
                       currentStatus={apt.status}
                       clientName={apt.client.name}
                       initialDate={apt.date}
