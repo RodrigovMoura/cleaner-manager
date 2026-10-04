@@ -34,7 +34,7 @@ describe("InvoicePDF Component", () => {
 
     // Verify company name is correctly loaded
     expect(COMPANY_NAME).toBe("Ana's Cleaning Touch");
-    expect(COMPANY_SUBTITLE).toBe("Residential Cleaning Services");
+    expect(COMPANY_SUBTITLE).toBe("Cleaning Services");
   });
 
   it("should structure the document with company header, client info, and total amount", () => {
