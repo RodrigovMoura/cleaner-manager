@@ -278,7 +278,7 @@ export default function InvoicePDF({ invoice }: InvoicePDFProps) {
 
           <View style={styles.tableRow}>
             <View style={styles.colDescription}>
-              <Text style={styles.colItemText}>Residential Cleaning Service ({serviceDate})</Text>
+              <Text style={styles.colItemText}>Cleaning Service ({serviceDate})</Text>
             </View>
             <View style={styles.colAmount}>
               <Text style={styles.colItemText}>{`$${Number(invoice.amount).toFixed(2)}`}</Text>
