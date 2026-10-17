@@ -108,6 +108,7 @@ The schema is defined in `prisma/schema.prisma`.
 
 ### Server Actions
 - Placed in `src/actions/` with `"use server"` directive at the top.
+- **Strict `"use server"` Export Rule**: Next.js requires every runtime export in a `"use server"` file to be an `async` function (`export async function ...`). **Never** export synchronous helper functions (`export function ...`), constants (`export const ...`), or classes/enums from a `"use server"` file. Keep synchronous helpers private (unexported) inside the action file or move shared pure helpers to `src/lib/`. TypeScript type exports (`export type`, `export interface`) are allowed.
 - Standard return format for mutations:
   ```ts
   type ActionResult = {
@@ -148,11 +149,16 @@ The schema is defined in `prisma/schema.prisma`.
 
 ---
 
-## 7. Useful Development Commands
+## 7. Useful Development Commands & Pre-Completion Verification
+
+> **Verification Rule**: Before concluding any code modification task, ALWAYS run `npm test` (which includes the `"use server"` contract test) AND `npm run build` to guarantee both unit tests and the Next.js production compiler succeed.
 
 ```bash
 # Start development server
 npm run dev
+
+# Run unit & architectural contract tests (Vitest)
+npm test
 
 # Run ESLint checks
 npm run lint

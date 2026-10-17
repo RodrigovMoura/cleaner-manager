@@ -321,7 +321,7 @@ const WEEKDAY_NAMES = [
   "Saturday",
 ] as const;
 
-export function partitionClientScheduledAppointments<
+function partitionClientScheduledAppointments<
   T extends { id: string; date: Date | string; createdAt?: Date | string },
 >(targetAppointment: T, allScheduled: T[]) {
   const targetDate = new Date(targetAppointment.date);
