@@ -17,7 +17,9 @@ export default async function CalendarPage() {
 
   const rawAppointments = await prisma.appointment.findMany({
     where: {
-      status: "SCHEDULED",
+      status: {
+        not: "CANCELLED",
+      },
       client: {
         userId: session.userId,
       },

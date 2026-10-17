@@ -49,11 +49,11 @@ export default function CalendarView({ appointments }: CalendarViewProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Pre-index appointments by local YYYY-MM-DD (only SCHEDULED appointments)
+  // Pre-index appointments by local YYYY-MM-DD (exclude CANCELLED appointments)
   const appointmentsByDay = useMemo(() => {
     const map = new Map<string, CalendarAppointment[]>();
     for (const apt of appointments) {
-      if (apt.status !== "SCHEDULED") continue;
+      if (apt.status === "CANCELLED") continue;
       const d = new Date(apt.date);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(
         2,
