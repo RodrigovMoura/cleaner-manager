@@ -20,6 +20,16 @@ interface AppointmentActionsProps {
   hasInvoice?: boolean;
 }
 
+interface CancelConflictDetails {
+  weekdayName: string;
+  recurrenceLabel: string | null;
+  otherWeekdays: string[];
+  matchingCount: number;
+  otherCount: number;
+  totalCount: number;
+  message?: string;
+}
+
 export default function AppointmentActions({
   appointmentId,
   currentStatus,
@@ -38,6 +48,10 @@ export default function AppointmentActions({
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelScope, setCancelScope] = useState<"THIS_ONLY" | "ALL_FOR_CLIENT">("THIS_ONLY");
+  const [conflictDetails, setConflictDetails] = useState<CancelConflictDetails | null>(null);
+  const [conflictResolution, setConflictResolution] = useState<"SAME_RECURRENCE" | "ALL_WITHOUT_EXCEPTION">(
+    "SAME_RECURRENCE",
+  );
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"BANK_TRANSFER" | "CASH">(
@@ -209,6 +223,8 @@ export default function AppointmentActions({
 
   const handleOpenCancelModal = () => {
     setCancelScope("THIS_ONLY");
+    setConflictDetails(null);
+    setConflictResolution("SAME_RECURRENCE");
     setCancelError(null);
     setIsCancelModalOpen(true);
   };
@@ -217,9 +233,22 @@ export default function AppointmentActions({
     setIsCancelling(true);
     setCancelError(null);
     try {
-      const result = await cancelAppointment(appointmentId, cancelScope);
+      const effectiveScope = conflictDetails ? conflictResolution : cancelScope;
+      const result = await cancelAppointment(appointmentId, effectiveScope);
       if (result.success) {
+        setConflictDetails(null);
         setIsCancelModalOpen(false);
+      } else if ("requiresConfirmation" in result && result.requiresConfirmation) {
+        setConflictDetails({
+          weekdayName: result.weekdayName || "selected day",
+          recurrenceLabel: result.recurrenceLabel ?? null,
+          otherWeekdays: result.otherWeekdays || [],
+          matchingCount: result.matchingCount ?? 1,
+          otherCount: result.otherCount ?? 1,
+          totalCount: result.totalCount ?? 2,
+          message: result.message,
+        });
+        setConflictResolution("SAME_RECURRENCE");
       } else {
         setCancelError(result.message || "Failed to cancel appointment.");
       }
@@ -799,74 +828,188 @@ export default function AppointmentActions({
               )}
             </div>
 
-            {/* Cancellation Scope Options */}
-            <div className='space-y-2'>
-              <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
-                Cancellation Option
-              </label>
-              <div className='grid grid-cols-1 gap-2'>
-                {/* Option 1: Only this appointment */}
-                <div
-                  onClick={() => setCancelScope("THIS_ONLY")}
-                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
-                    cancelScope === "THIS_ONLY"
-                      ? "border-red-600 bg-red-50/40 shadow-xs"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}>
-                  <input
-                    type='radio'
-                    id={`cancel-scope-single-${appointmentId}`}
-                    name={`cancelScope-${appointmentId}`}
-                    value='THIS_ONLY'
-                    checked={cancelScope === "THIS_ONLY"}
-                    onChange={() => setCancelScope("THIS_ONLY")}
-                    className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
-                  />
-                  <div className='min-w-0 flex-1'>
-                    <label
-                      htmlFor={`cancel-scope-single-${appointmentId}`}
-                      className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
-                      Only this appointment
-                    </label>
-                    <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
-                      Cancel only the cleaning scheduled for {formattedDate ? `${formattedDate} at ${formattedTime}` : "this date"}.
-                    </p>
-                  </div>
+            {/* Cancellation Scope Options or Multi-Date Conflict Confirmation */}
+            {conflictDetails ? (
+              <div className='space-y-3'>
+                <div className='p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1.5'>
+                  <p className='font-bold text-amber-950 flex items-center gap-1.5'>
+                    <span>⚠️</span>
+                    <span>Other scheduled dates found</span>
+                  </p>
+                  <p className='leading-relaxed text-amber-800'>
+                    <strong>{clientName || "This client"}</strong> also has{" "}
+                    <strong>{conflictDetails.otherCount}</strong> scheduled appointment(s) on{" "}
+                    <strong>
+                      {conflictDetails.otherWeekdays.length > 0
+                        ? conflictDetails.otherWeekdays.join(", ")
+                        : "other dates"}
+                    </strong>
+                    . Would you like to cancel only the{" "}
+                    <strong>
+                      {conflictDetails.weekdayName}
+                      {conflictDetails.recurrenceLabel ? ` (${conflictDetails.recurrenceLabel})` : ""}
+                    </strong>{" "}
+                    appointments, or all appointments without exception?
+                  </p>
                 </div>
 
-                {/* Option 2: All appointments for this client */}
-                <div
-                  onClick={() => setCancelScope("ALL_FOR_CLIENT")}
-                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
-                    cancelScope === "ALL_FOR_CLIENT"
-                      ? "border-red-600 bg-red-50/40 shadow-xs"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}>
-                  <input
-                    type='radio'
-                    id={`cancel-scope-all-${appointmentId}`}
-                    name={`cancelScope-${appointmentId}`}
-                    value='ALL_FOR_CLIENT'
-                    checked={cancelScope === "ALL_FOR_CLIENT"}
-                    onChange={() => setCancelScope("ALL_FOR_CLIENT")}
-                    className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
-                  />
-                  <div className='min-w-0 flex-1'>
-                    <label
-                      htmlFor={`cancel-scope-all-${appointmentId}`}
-                      className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
-                      All appointments for this client
-                    </label>
-                    <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
-                      Cancel all existing scheduled cleanings for {clientName || "this client"}.
-                    </p>
+                <div className='space-y-2'>
+                  <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                    Choose Which Appointments to Cancel
+                  </label>
+                  <div className='grid grid-cols-1 gap-2'>
+                    {/* Option 1: Only the chosen date/recurrence */}
+                    <div
+                      onClick={() => setConflictResolution("SAME_RECURRENCE")}
+                      className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                        conflictResolution === "SAME_RECURRENCE"
+                          ? "border-red-600 bg-red-50/40 shadow-xs"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}>
+                      <input
+                        type='radio'
+                        id={`cancel-scope-recurrence-${appointmentId}`}
+                        name={`cancelConflictScope-${appointmentId}`}
+                        value='SAME_RECURRENCE'
+                        checked={conflictResolution === "SAME_RECURRENCE"}
+                        onChange={() => setConflictResolution("SAME_RECURRENCE")}
+                        className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                      />
+                      <div className='min-w-0 flex-1'>
+                        <label
+                          htmlFor={`cancel-scope-recurrence-${appointmentId}`}
+                          className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                          Only {conflictDetails.weekdayName}
+                          {conflictDetails.recurrenceLabel ? ` (${conflictDetails.recurrenceLabel})` : ""} appointments (
+                          {conflictDetails.matchingCount})
+                        </label>
+                        <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                          Cancel only the {conflictDetails.weekdayName} schedule, keeping{" "}
+                          {conflictDetails.otherWeekdays.length > 0
+                            ? conflictDetails.otherWeekdays.join(", ")
+                            : "other"}{" "}
+                          appointments.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Option 2: All appointments without exception */}
+                    <div
+                      onClick={() => setConflictResolution("ALL_WITHOUT_EXCEPTION")}
+                      className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                        conflictResolution === "ALL_WITHOUT_EXCEPTION"
+                          ? "border-red-600 bg-red-50/40 shadow-xs"
+                          : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}>
+                      <input
+                        type='radio'
+                        id={`cancel-scope-exception-${appointmentId}`}
+                        name={`cancelConflictScope-${appointmentId}`}
+                        value='ALL_WITHOUT_EXCEPTION'
+                        checked={conflictResolution === "ALL_WITHOUT_EXCEPTION"}
+                        onChange={() => setConflictResolution("ALL_WITHOUT_EXCEPTION")}
+                        className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                      />
+                      <div className='min-w-0 flex-1'>
+                        <label
+                          htmlFor={`cancel-scope-exception-${appointmentId}`}
+                          className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                          All appointments without exception ({conflictDetails.totalCount})
+                        </label>
+                        <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                          Cancel all {conflictDetails.totalCount} scheduled cleanings for{" "}
+                          {clientName || "this client"}, including{" "}
+                          {conflictDetails.otherWeekdays.length > 0
+                            ? conflictDetails.otherWeekdays.join(", ")
+                            : "other dates"}
+                          .
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className='space-y-2'>
+                <label className='block text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                  Cancellation Option
+                </label>
+                <div className='grid grid-cols-1 gap-2'>
+                  {/* Option 1: Only this appointment */}
+                  <div
+                    onClick={() => setCancelScope("THIS_ONLY")}
+                    className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                      cancelScope === "THIS_ONLY"
+                        ? "border-red-600 bg-red-50/40 shadow-xs"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    }`}>
+                    <input
+                      type='radio'
+                      id={`cancel-scope-single-${appointmentId}`}
+                      name={`cancelScope-${appointmentId}`}
+                      value='THIS_ONLY'
+                      checked={cancelScope === "THIS_ONLY"}
+                      onChange={() => setCancelScope("THIS_ONLY")}
+                      className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <label
+                        htmlFor={`cancel-scope-single-${appointmentId}`}
+                        className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                        Only this appointment
+                      </label>
+                      <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                        Cancel only the cleaning scheduled for {formattedDate ? `${formattedDate} at ${formattedTime}` : "this date"}.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Option 2: All appointments for this client */}
+                  <div
+                    onClick={() => setCancelScope("ALL_FOR_CLIENT")}
+                    className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                      cancelScope === "ALL_FOR_CLIENT"
+                        ? "border-red-600 bg-red-50/40 shadow-xs"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    }`}>
+                    <input
+                      type='radio'
+                      id={`cancel-scope-all-${appointmentId}`}
+                      name={`cancelScope-${appointmentId}`}
+                      value='ALL_FOR_CLIENT'
+                      checked={cancelScope === "ALL_FOR_CLIENT"}
+                      onChange={() => setCancelScope("ALL_FOR_CLIENT")}
+                      className='mt-0.5 text-red-600 focus:ring-red-500 cursor-pointer'
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <label
+                        htmlFor={`cancel-scope-all-${appointmentId}`}
+                        className='font-bold text-xs sm:text-sm text-gray-900 block cursor-pointer'>
+                        All appointments for this client
+                      </label>
+                      <p className='text-[11px] text-gray-500 mt-0.5 leading-tight'>
+                        Cancel all existing scheduled cleanings for {clientName || "this client"}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className='flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100'>
+              {conflictDetails && (
+                <button
+                  type='button'
+                  disabled={isCancelling}
+                  onClick={() => {
+                    setConflictDetails(null);
+                    setCancelError(null);
+                  }}
+                  className='px-3.5 py-2 text-xs sm:text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50 mr-auto'>
+                  ← Back
+                </button>
+              )}
               <button
                 type='button'
                 disabled={isCancelling}
@@ -884,6 +1027,12 @@ export default function AppointmentActions({
                     <span className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin' />
                     <span>Cancelling...</span>
                   </>
+                ) : conflictDetails ? (
+                  conflictResolution === "SAME_RECURRENCE" ? (
+                    `Cancel ${conflictDetails.weekdayName} Appointments`
+                  ) : (
+                    "Cancel All Without Exception"
+                  )
                 ) : cancelScope === "ALL_FOR_CLIENT" ? (
                   "Cancel All Appointments"
                 ) : (

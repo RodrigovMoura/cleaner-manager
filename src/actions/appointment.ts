@@ -305,9 +305,158 @@ export async function updateAppointmentStatus(
   }
 }
 
+export type CancelScope =
+  | "THIS_ONLY"
+  | "ALL_FOR_CLIENT"
+  | "SAME_RECURRENCE"
+  | "ALL_WITHOUT_EXCEPTION";
+
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+export function partitionClientScheduledAppointments<
+  T extends { id: string; date: Date | string; createdAt?: Date | string },
+>(targetAppointment: T, allScheduled: T[]) {
+  const targetDate = new Date(targetAppointment.date);
+  const isValidTargetDate = !isNaN(targetDate.getTime());
+
+  if (!isValidTargetDate || allScheduled.length <= 1) {
+    return {
+      matchingAppointments: allScheduled,
+      otherAppointments: [] as T[],
+      weekdayName: isValidTargetDate ? WEEKDAY_NAMES[targetDate.getDay()] : "this day",
+      recurrenceLabel: null as string | null,
+      otherWeekdays: [] as string[],
+    };
+  }
+
+  const targetWeekday = targetDate.getDay();
+  const targetDayOfMonth = targetDate.getDate();
+  const weekdayName = WEEKDAY_NAMES[targetWeekday];
+
+  const sameWeekday = allScheduled.filter((apt) => {
+    const d = new Date(apt.date);
+    return !isNaN(d.getTime()) && d.getDay() === targetWeekday;
+  });
+
+  const diffWeekday = allScheduled.filter((apt) => {
+    const d = new Date(apt.date);
+    return !isNaN(d.getTime()) && d.getDay() !== targetWeekday;
+  });
+
+  let matchingAppointments = sameWeekday;
+  let otherAppointments = diffWeekday;
+  let recurrenceLabel: string | null = null;
+
+  // Check if target is part of a monthly series (different weekdays, same day of month)
+  if (sameWeekday.length === 1 && diffWeekday.length > 0) {
+    const sameDayOfMonth = allScheduled.filter((apt) => {
+      const d = new Date(apt.date);
+      return !isNaN(d.getTime()) && d.getDate() === targetDayOfMonth;
+    });
+
+    if (sameDayOfMonth.length > 1) {
+      matchingAppointments = sameDayOfMonth;
+      otherAppointments = allScheduled.filter((apt) => {
+        const d = new Date(apt.date);
+        return !isNaN(d.getTime()) && d.getDate() !== targetDayOfMonth;
+      });
+      recurrenceLabel = "monthly";
+    }
+  } else if (sameWeekday.length > 1 && targetAppointment.createdAt) {
+    // Check if there are two distinct bi-weekly schedules on the same weekday (off-weeks created in separate batches)
+    const targetCreatedTime = new Date(targetAppointment.createdAt).getTime();
+    if (!isNaN(targetCreatedTime)) {
+      const sameBatch = sameWeekday.filter(
+        (apt) =>
+          apt.createdAt &&
+          Math.abs(new Date(apt.createdAt).getTime() - targetCreatedTime) < 5000,
+      );
+      const diffBatch = sameWeekday.filter(
+        (apt) =>
+          apt.createdAt &&
+          Math.abs(new Date(apt.createdAt).getTime() - targetCreatedTime) >= 5000,
+      );
+
+      if (sameBatch.length >= 2 && diffBatch.length >= 1) {
+        const sortedBatch = [...sameBatch].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+        );
+        const batchGapDays = Math.round(
+          (new Date(sortedBatch[1].date).getTime() - new Date(sortedBatch[0].date).getTime()) /
+            (1000 * 60 * 60 * 24),
+        );
+        const hasOffWeekInDiffBatch = diffBatch.some((apt) => {
+          const daysFromTarget = Math.abs(
+            Math.round(
+              (new Date(apt.date).getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24),
+            ),
+          );
+          return daysFromTarget % 14 !== 0;
+        });
+
+        if (batchGapDays >= 13 && batchGapDays <= 15 && hasOffWeekInDiffBatch) {
+          matchingAppointments = sameBatch;
+          otherAppointments = [...diffWeekday, ...diffBatch];
+          recurrenceLabel = "bi-weekly";
+        }
+      }
+    }
+  }
+
+  // Ensure targetAppointment is always included in matchingAppointments
+  if (!matchingAppointments.some((apt) => apt.id === targetAppointment.id)) {
+    matchingAppointments = [targetAppointment, ...matchingAppointments];
+  }
+
+  // Detect recurrence frequency among matchingAppointments if not already set
+  if (!recurrenceLabel && matchingAppointments.length >= 2) {
+    const sorted = [...matchingAppointments].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+    const diffDays = Math.round(
+      (new Date(sorted[1].date).getTime() - new Date(sorted[0].date).getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    if (diffDays >= 6 && diffDays <= 8) {
+      recurrenceLabel = "weekly";
+    } else if (diffDays >= 13 && diffDays <= 15) {
+      recurrenceLabel = "bi-weekly";
+    } else if (diffDays >= 27 && diffDays <= 32) {
+      recurrenceLabel = "monthly";
+    }
+  }
+
+  const otherWeekdays = Array.from(
+    new Set(
+      otherAppointments
+        .map((apt) => {
+          const d = new Date(apt.date);
+          return !isNaN(d.getTime()) ? WEEKDAY_NAMES[d.getDay()] : null;
+        })
+        .filter((w): w is (typeof WEEKDAY_NAMES)[number] => Boolean(w)),
+    ),
+  );
+
+  return {
+    matchingAppointments,
+    otherAppointments,
+    weekdayName,
+    recurrenceLabel,
+    otherWeekdays,
+  };
+}
+
 export async function cancelAppointment(
   appointmentId: string,
-  scope: "THIS_ONLY" | "ALL_FOR_CLIENT" = "THIS_ONLY",
+  scope: CancelScope = "THIS_ONLY",
 ) {
   try {
     const session = await getSession();
@@ -335,32 +484,7 @@ export async function cancelAppointment(
       return { success: false, message: "Appointment not found or unauthorized." };
     }
 
-    if (scope === "ALL_FOR_CLIENT") {
-      const result = await prisma.appointment.updateMany({
-        where: {
-          clientId: appointment.clientId,
-          status: AppointmentStatus.SCHEDULED,
-          client: {
-            userId: session.userId,
-          },
-        },
-        data: {
-          status: AppointmentStatus.CANCELLED,
-        },
-      });
-
-      revalidatePath("/schedule");
-      revalidatePath(`/clients/${appointment.clientId}`);
-      revalidatePath("/calendar");
-      revalidatePath("/invoices");
-      revalidatePath("/");
-
-      return {
-        success: true,
-        message: `Successfully cancelled all ${result.count} scheduled cleanings for ${appointment.client.name}.`,
-        count: result.count,
-      };
-    } else {
+    if (scope === "THIS_ONLY") {
       await prisma.appointment.update({
         where: { id: appointmentId },
         data: {
@@ -380,6 +504,103 @@ export async function cancelAppointment(
         count: 1,
       };
     }
+
+    const allScheduled =
+      (await prisma.appointment.findMany({
+        where: {
+          clientId: appointment.clientId,
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: session.userId,
+          },
+        },
+        orderBy: {
+          date: "asc",
+        },
+      })) || [];
+
+    const {
+      matchingAppointments,
+      otherAppointments,
+      weekdayName,
+      recurrenceLabel,
+      otherWeekdays,
+    } = partitionClientScheduledAppointments(appointment, allScheduled);
+
+    if (scope === "ALL_FOR_CLIENT" && otherAppointments.length > 0) {
+      const otherDaysText =
+        otherWeekdays.length > 0 ? otherWeekdays.join(", ") : "other dates";
+
+      return {
+        success: false,
+        requiresConfirmation: true,
+        weekdayName,
+        recurrenceLabel,
+        otherWeekdays,
+        matchingCount: matchingAppointments.length,
+        otherCount: otherAppointments.length,
+        totalCount: allScheduled.length,
+        message: `There are other appointments scheduled on ${otherDaysText}. Would you like to cancel only the ${weekdayName}${recurrenceLabel ? ` (${recurrenceLabel})` : ""} appointments or all appointments without exception?`,
+      };
+    }
+
+    if (scope === "SAME_RECURRENCE") {
+      const matchingIds = matchingAppointments.map((apt) => apt.id);
+      if (!matchingIds.includes(appointmentId)) {
+        matchingIds.push(appointmentId);
+      }
+
+      const result = await prisma.appointment.updateMany({
+        where: {
+          id: { in: matchingIds },
+          clientId: appointment.clientId,
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: session.userId,
+          },
+        },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+
+      revalidatePath("/schedule");
+      revalidatePath(`/clients/${appointment.clientId}`);
+      revalidatePath("/calendar");
+      revalidatePath("/invoices");
+      revalidatePath("/");
+
+      return {
+        success: true,
+        message: `Successfully cancelled ${result.count} ${weekdayName}${recurrenceLabel ? ` (${recurrenceLabel})` : ""} scheduled cleaning(s) for ${appointment.client.name}.`,
+        count: result.count,
+      };
+    }
+
+    const result = await prisma.appointment.updateMany({
+      where: {
+        clientId: appointment.clientId,
+        status: AppointmentStatus.SCHEDULED,
+        client: {
+          userId: session.userId,
+        },
+      },
+      data: {
+        status: AppointmentStatus.CANCELLED,
+      },
+    });
+
+    revalidatePath("/schedule");
+    revalidatePath(`/clients/${appointment.clientId}`);
+    revalidatePath("/calendar");
+    revalidatePath("/invoices");
+    revalidatePath("/");
+
+    return {
+      success: true,
+      message: `Successfully cancelled all ${result.count} scheduled cleanings for ${appointment.client.name}.`,
+      count: result.count,
+    };
   } catch (error) {
     console.error("Failed to cancel appointment:", error);
     return { success: false, message: "An error occurred while cancelling. Please try again." };

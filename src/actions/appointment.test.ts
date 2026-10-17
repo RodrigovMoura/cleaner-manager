@@ -165,8 +165,8 @@ describe("appointment actions", () => {
 
     it("should successfully update date, time, and price, resetting reminderSentAt", async () => {
       vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
-      const originalDate = new Date("2026-10-10T10:00:00Z");
-      const newDate = new Date("2026-10-15T14:30:00Z");
+      const originalDate = new Date("2027-10-10T10:00:00Z");
+      const newDate = new Date("2027-10-15T14:30:00Z");
 
       vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce({
         id: "apt-123",
@@ -365,7 +365,7 @@ describe("appointment actions", () => {
       vi.mocked(prisma.client.findFirst).mockResolvedValueOnce({ id: "client-1", userId: "user-1" } as never);
       vi.mocked(prisma.appointment.createMany).mockResolvedValueOnce({ count: 3 } as never);
 
-      const baseDate = new Date(2026, 9, 15, 10, 0); // Oct 15, 2026 10:00
+      const baseDate = new Date(2027, 9, 15, 10, 0); // Oct 15, 2027 10:00
       const formData = new FormData();
       formData.append("clientId", "client-1");
       formData.append("date", baseDate.toISOString());
@@ -674,6 +674,148 @@ describe("appointment actions", () => {
       expect(revalidatePath).toHaveBeenCalledWith("/calendar");
       expect(revalidatePath).toHaveBeenCalledWith("/invoices");
       expect(revalidatePath).toHaveBeenCalledWith("/");
+    });
+
+    it("should return requiresConfirmation when ALL_FOR_CLIENT is selected and client has appointments on another weekday (e.g. Friday vs Wednesday)", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const targetFridayApt = {
+        id: "apt-fri-1",
+        clientId: "client-1",
+        date: new Date("2026-10-23T10:00:00Z"), // Friday
+        status: AppointmentStatus.SCHEDULED,
+        client: { id: "client-1", name: "Alice", userId: "user-1" },
+      };
+
+      const allScheduled = [
+        targetFridayApt,
+        {
+          id: "apt-fri-2",
+          clientId: "client-1",
+          date: new Date("2026-11-06T10:00:00Z"), // Friday (bi-weekly)
+          status: AppointmentStatus.SCHEDULED,
+        },
+        {
+          id: "apt-wed-1",
+          clientId: "client-1",
+          date: new Date("2026-10-28T10:00:00Z"), // Wednesday
+          status: AppointmentStatus.SCHEDULED,
+        },
+        {
+          id: "apt-wed-2",
+          clientId: "client-1",
+          date: new Date("2026-11-11T10:00:00Z"), // Wednesday (bi-weekly)
+          status: AppointmentStatus.SCHEDULED,
+        },
+      ];
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(targetFridayApt as never);
+      vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce(allScheduled as never);
+
+      const result = await cancelAppointment("apt-fri-1", "ALL_FOR_CLIENT");
+
+      expect(result.success).toBe(false);
+      expect("requiresConfirmation" in result && result.requiresConfirmation).toBe(true);
+      if ("requiresConfirmation" in result && result.requiresConfirmation) {
+        expect(result.weekdayName).toBe("Friday");
+        expect(result.recurrenceLabel).toBe("bi-weekly");
+        expect(result.otherWeekdays).toEqual(["Wednesday"]);
+        expect(result.matchingCount).toBe(2);
+        expect(result.otherCount).toBe(2);
+        expect(result.totalCount).toBe(4);
+      }
+      // Must NOT cancel appointments until user confirms scope
+      expect(prisma.appointment.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("should cancel only the chosen weekday/recurrence appointments when scope is SAME_RECURRENCE, keeping other dates", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const targetFridayApt = {
+        id: "apt-fri-1",
+        clientId: "client-1",
+        date: new Date("2026-10-23T10:00:00Z"), // Friday
+        status: AppointmentStatus.SCHEDULED,
+        client: { id: "client-1", name: "Alice", userId: "user-1" },
+      };
+
+      const allScheduled = [
+        targetFridayApt,
+        {
+          id: "apt-fri-2",
+          clientId: "client-1",
+          date: new Date("2026-11-06T10:00:00Z"), // Friday (bi-weekly)
+          status: AppointmentStatus.SCHEDULED,
+        },
+        {
+          id: "apt-wed-1",
+          clientId: "client-1",
+          date: new Date("2026-10-28T10:00:00Z"), // Wednesday
+          status: AppointmentStatus.SCHEDULED,
+        },
+      ];
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(targetFridayApt as never);
+      vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce(allScheduled as never);
+      vi.mocked(prisma.appointment.updateMany).mockResolvedValueOnce({ count: 2 } as never);
+
+      const result = await cancelAppointment("apt-fri-1", "SAME_RECURRENCE");
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Friday (bi-weekly)");
+      expect(prisma.appointment.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ["apt-fri-1", "apt-fri-2"] },
+          clientId: "client-1",
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: "user-1",
+          },
+        },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
+    });
+
+    it("should cancel all appointments without exception when scope is ALL_WITHOUT_EXCEPTION", async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({ userId: "user-1" });
+      const targetFridayApt = {
+        id: "apt-fri-1",
+        clientId: "client-1",
+        date: new Date("2026-10-23T10:00:00Z"), // Friday
+        status: AppointmentStatus.SCHEDULED,
+        client: { id: "client-1", name: "Alice", userId: "user-1" },
+      };
+
+      const allScheduled = [
+        targetFridayApt,
+        {
+          id: "apt-wed-1",
+          clientId: "client-1",
+          date: new Date("2026-10-28T10:00:00Z"), // Wednesday
+          status: AppointmentStatus.SCHEDULED,
+        },
+      ];
+
+      vi.mocked(prisma.appointment.findFirst).mockResolvedValueOnce(targetFridayApt as never);
+      vi.mocked(prisma.appointment.findMany).mockResolvedValueOnce(allScheduled as never);
+      vi.mocked(prisma.appointment.updateMany).mockResolvedValueOnce({ count: 2 } as never);
+
+      const result = await cancelAppointment("apt-fri-1", "ALL_WITHOUT_EXCEPTION");
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain("Successfully cancelled all 2 scheduled cleanings for Alice");
+      expect(prisma.appointment.updateMany).toHaveBeenCalledWith({
+        where: {
+          clientId: "client-1",
+          status: AppointmentStatus.SCHEDULED,
+          client: {
+            userId: "user-1",
+          },
+        },
+        data: {
+          status: AppointmentStatus.CANCELLED,
+        },
+      });
     });
   });
 });

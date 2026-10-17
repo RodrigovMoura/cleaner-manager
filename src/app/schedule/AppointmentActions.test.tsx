@@ -219,4 +219,113 @@ describe("AppointmentActions Component", () => {
 
     expect(await screen.findByText("Database connection failed")).toBeInTheDocument();
   });
+
+  it("should prompt user when other scheduled dates exist and allow cancelling only the chosen weekday/recurrence (SAME_RECURRENCE)", async () => {
+    vi.mocked(cancelAppointment)
+      .mockResolvedValueOnce({
+        success: false,
+        requiresConfirmation: true,
+        weekdayName: "Friday",
+        recurrenceLabel: "bi-weekly",
+        otherWeekdays: ["Wednesday"],
+        matchingCount: 4,
+        otherCount: 4,
+        totalCount: 8,
+        message: "Other appointments exist on Wednesday.",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Successfully cancelled 4 Friday (bi-weekly) scheduled cleaning(s) for Maria Santos.",
+        count: 4,
+      });
+
+    render(
+      <AppointmentActions
+        appointmentId='apt-fri-1'
+        currentStatus='SCHEDULED'
+        clientName='Maria Santos'
+        initialDate='2026-10-23T09:00:00.000Z'
+        initialPrice={120}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+
+    // Select "All appointments for this client"
+    fireEvent.click(screen.getByLabelText(/all appointments for this client/i));
+
+    // Click "Cancel All Appointments" -> triggers conflict check
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /cancel all appointments/i }));
+    });
+
+    expect(cancelAppointment).toHaveBeenCalledWith("apt-fri-1", "ALL_FOR_CLIENT");
+
+    // Modal should remain open and show the conflict confirmation options
+    expect(screen.getByText(/other scheduled dates found/i)).toBeInTheDocument();
+    const onlyFridayRadio = screen.getByLabelText(/only friday \(bi-weekly\) appointments \(4\)/i);
+    const allWithoutExceptionRadio = screen.getByLabelText(/all appointments without exception \(8\)/i);
+
+    expect(onlyFridayRadio).toBeChecked();
+    expect(allWithoutExceptionRadio).not.toBeChecked();
+
+    // Confirm cancelling only Friday appointments
+    const confirmFridayBtn = screen.getByRole("button", { name: /cancel friday appointments/i });
+    await act(async () => {
+      fireEvent.click(confirmFridayBtn);
+    });
+
+    expect(cancelAppointment).toHaveBeenCalledWith("apt-fri-1", "SAME_RECURRENCE");
+    expect(screen.queryByRole("heading", { name: /cancel cleaning/i })).not.toBeInTheDocument();
+  });
+
+  it("should allow selecting ALL_WITHOUT_EXCEPTION when prompted about other scheduled dates", async () => {
+    vi.mocked(cancelAppointment)
+      .mockResolvedValueOnce({
+        success: false,
+        requiresConfirmation: true,
+        weekdayName: "Friday",
+        recurrenceLabel: "bi-weekly",
+        otherWeekdays: ["Wednesday"],
+        matchingCount: 3,
+        otherCount: 3,
+        totalCount: 6,
+        message: "Other appointments exist on Wednesday.",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Successfully cancelled all 6 scheduled cleanings for Maria Santos.",
+        count: 6,
+      });
+
+    render(
+      <AppointmentActions
+        appointmentId='apt-fri-2'
+        currentStatus='SCHEDULED'
+        clientName='Maria Santos'
+        initialDate='2026-10-23T09:00:00.000Z'
+        initialPrice={120}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    fireEvent.click(screen.getByLabelText(/all appointments for this client/i));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /cancel all appointments/i }));
+    });
+
+    // Switch radio to "All appointments without exception (6)"
+    const allWithoutExceptionRadio = screen.getByLabelText(/all appointments without exception \(6\)/i);
+    fireEvent.click(allWithoutExceptionRadio);
+    expect(allWithoutExceptionRadio).toBeChecked();
+
+    const confirmAllBtn = screen.getByRole("button", { name: /cancel all without exception/i });
+    await act(async () => {
+      fireEvent.click(confirmAllBtn);
+    });
+
+    expect(cancelAppointment).toHaveBeenCalledWith("apt-fri-2", "ALL_WITHOUT_EXCEPTION");
+    expect(screen.queryByRole("heading", { name: /cancel cleaning/i })).not.toBeInTheDocument();
+  });
 });
